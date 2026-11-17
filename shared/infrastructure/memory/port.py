@@ -1,0 +1,9 @@
+from typing import Any, Protocol
+
+
+class MemoryPort(Protocol):
+    def set(self, key: str, value: Any, ttl_seconds: int | None = None) -> None: ...
+
+    def get(self, key: str, default: Any = None) -> Any: ...
+
+    def delete(self, key: str) -> None: ...
