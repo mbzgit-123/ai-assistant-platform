@@ -1,0 +1,35 @@
+[importlinter]
+root_packages =
+    shared
+    contexts
+    orchestrator
+    api
+
+[importlinter:contract:shared-layers]
+name = shared.common -> shared.infrastructure (one-way)
+type = layers
+layers =
+    shared.common
+    shared.infrastructure
+
+[importlinter:contract:shared-isolated]
+name = shared must not depend on contexts/orchestrator/api
+type = forbidden
+source_modules =
+    shared
+forbidden_modules =
+    contexts
+    orchestrator
+    api
+
+[importlinter:contract:contexts-independent]
+name = Bounded contexts are independent
+type = independence
+modules =
+    contexts.sales_assistant
+    contexts.teaching_assistant
+    contexts.course_assistant
+    contexts.exam_paper_generation
+    contexts.self_practice
+    contexts.exam_grading
+    contexts.learning_analytics
