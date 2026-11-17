@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, Text
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infrastructure.db.base import Base, utcnow
@@ -38,7 +39,9 @@ class Chapter(Base):
     course_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     document_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     title: Mapped[str] = mapped_column(String(256))
-    content_md: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_md: Mapped[str | None] = mapped_column(
+        Text().with_variant(LONGTEXT(), "mysql"), nullable=True
+    )
     synced_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow)
 
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, JSON, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Index, JSON, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infrastructure.db.base import Base, utcnow
@@ -34,6 +34,9 @@ class PracticeSession(Base):
 
 class PracticeQuestion(Base):
     __tablename__ = "practice_question"
+    __table_args__ = (
+        Index("ix_practice_question_video_type", "video_id", "question_type"),
+    )
 
     question_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     practice_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

@@ -1,7 +1,10 @@
 from sqlalchemy import create_engine
+from sqlalchemy.dialects import mysql
 
 from shared.infrastructure.db.base import Base
 import shared.infrastructure.db.models  # noqa: F401  触发模型注册
+from shared.infrastructure.db.models.business import PracticeQuestion
+from shared.infrastructure.db.models.sync_cache import Chapter
 
 
 EXPECTED_TABLES = {
@@ -41,3 +44,16 @@ def test_create_and_insert():
         s.add(Lead(lead_id="l1", contact="13800000000", direction="AI"))
         s.commit()
         assert s.get(Lead, "l1").contact == "13800000000"
+
+
+def test_chapter_content_md_uses_longtext_variant():
+    col = Chapter.__table__.c.content_md
+    assert col.type.compile(dialect=mysql.dialect()) == "LONGTEXT"
+
+
+def test_practice_question_has_video_type_index():
+    ix = next(
+        ix for ix in PracticeQuestion.__table__.indexes
+        if ix.name == "ix_practice_question_video_type"
+    )
+    assert [c.name for c in ix.columns] == ["video_id", "question_type"]

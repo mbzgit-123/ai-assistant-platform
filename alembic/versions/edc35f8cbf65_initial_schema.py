@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import mysql
 
 
 # revision identifiers, used by Alembic.
@@ -26,7 +27,7 @@ def upgrade() -> None:
     sa.Column('course_id', sa.String(length=64), nullable=True),
     sa.Column('document_id', sa.String(length=64), nullable=True),
     sa.Column('title', sa.String(length=256), nullable=False),
-    sa.Column('content_md', sa.Text(), nullable=True),
+    sa.Column('content_md', sa.Text().with_variant(mysql.LONGTEXT(), 'mysql'), nullable=True),
     sa.Column('synced_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('chapter_id')
     )
@@ -110,6 +111,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('question_id')
     )
+    op.create_index('ix_practice_question_video_type', 'practice_question', ['video_id', 'question_type'], unique=False)
     op.create_table('practice_session',
     sa.Column('practice_id', sa.String(length=64), nullable=False),
     sa.Column('student_id', sa.String(length=64), nullable=True),
@@ -200,6 +202,7 @@ def downgrade() -> None:
     op.drop_table('student_course')
     op.drop_table('student')
     op.drop_table('practice_session')
+    op.drop_index('ix_practice_question_video_type', table_name='practice_question')
     op.drop_table('practice_question')
     op.drop_table('practice_answer')
     op.drop_table('mastery_trend')

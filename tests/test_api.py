@@ -1,6 +1,14 @@
 from fastapi.testclient import TestClient
 
+import api.main as main_module
 from api.main import create_app
+
+
+def test_create_app_configures_logging(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main_module, "configure_logging", lambda: calls.append(True))
+    main_module.create_app()
+    assert calls == [True]
 
 
 def test_health():
