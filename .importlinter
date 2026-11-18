@@ -22,14 +22,26 @@ forbidden_modules =
     orchestrator
     api
 
-[importlinter:contract:contexts-independent]
-name = Bounded contexts are independent
+[importlinter:contract:contexts-leaf-independent]
+name = Leaf contexts and self_practice stay independent
 type = independence
 modules =
     contexts.sales_assistant
     contexts.teaching_assistant
     contexts.course_assistant
-    contexts.exam_paper_generation
+    contexts.learning_analytics
     contexts.self_practice
+
+[importlinter:contract:practice-producers-one-way]
+name = Practice producers may only depend on self_practice ports
+type = forbidden
+source_modules =
+    contexts.exam_paper_generation
     contexts.exam_grading
+forbidden_modules =
+    contexts.exam_paper_generation
+    contexts.exam_grading
+    contexts.sales_assistant
+    contexts.teaching_assistant
+    contexts.course_assistant
     contexts.learning_analytics
