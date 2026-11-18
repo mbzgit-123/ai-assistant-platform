@@ -458,6 +458,7 @@ def test_ask_excludes_low_score_chunks_from_sources():
     source_refs = [s["sourceRef"] for s in r["sources"]]
     assert "2.1" in source_refs           # 命中块进入 sources
     assert "2.9" not in source_refs       # 无关块（score 0.0）被排除
+```
 
 - [ ] **Step 2: 运行测试确认失败**
 
