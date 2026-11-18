@@ -57,7 +57,7 @@ class SalesChatService:
         conv_id = conversation_id or "c_" + uuid.uuid4().hex[:12]
         state = self._memory.get(conv_id) or {}
 
-        intent = self._recognize_intent(message)
+        intent = self._recognize_intent(message, state)
         direction = state.get("direction") or normalize_direction(intent.get("direction"))
         position = state.get("position") or normalize_position(intent.get("position"))
 
@@ -93,15 +93,18 @@ class SalesChatService:
             "leadSaved": lead_saved,
         }
 
-    def _recognize_intent(self, message: str) -> dict:
+    def _recognize_intent(self, message: str, state: dict) -> dict:
         default = {"intent": "direction_guide", "direction": None, "position": None}
-        data = self._call_llm_json(
-            [
-                {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
-                {"role": "user", "content": message},
-            ],
-            default,
-        )
+        messages = [{"role": "system", "content": _INTENT_SYSTEM_PROMPT}]
+        context_parts = []
+        if state.get("direction"):
+            context_parts.append(f"已识别方向: {state.get('direction')}")
+        if state.get("position"):
+            context_parts.append(f"岗位: {state.get('position')}")
+        if context_parts:
+            messages.append({"role": "system", "content": " / ".join(context_parts)})
+        messages.append({"role": "user", "content": message})
+        data = self._call_llm_json(messages, default)
         intent = data.get("intent")
         if intent not in _VALID_INTENTS:
             intent = "direction_guide"

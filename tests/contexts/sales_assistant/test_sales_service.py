@@ -6,6 +6,7 @@ from shared.infrastructure.db.base import Base
 import shared.infrastructure.db.models  # noqa: F401
 from shared.infrastructure.db.models.sync_cache import Course
 from shared.infrastructure.llm.fake import FakeLLMAdapter
+from shared.infrastructure.llm.port import LLMResult
 from shared.infrastructure.memory.in_memory import InMemoryStore
 
 from contexts.sales_assistant.application.service import (
@@ -122,3 +123,37 @@ def test_chat_bad_json_falls_back_to_guide():
     svc = _service(["not json", "still not json"])
     r = svc.chat(None, "想学编程", "web")
     assert r["reply"] == DIRECTION_PROMPT
+
+
+class _RecordingLLM:
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self._calls = []
+
+    def chat(self, messages):
+        self._calls.append(messages)
+        idx = min(len(self._calls) - 1, len(self._responses) - 1)
+        return LLMResult(content=self._responses[idx])
+
+
+def test_chat_intent_prompt_includes_memory_context():
+    llm = _RecordingLLM([
+        '{"intent": "course_intro", "direction": "Java", "position": ""}',
+        '{"intent": "course_intro", "direction": "", "position": ""}',
+    ])
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    s = Session(engine)
+    svc = SalesChatService(llm, InMemoryStore(), SalesRepository(s), StubVipReport())
+
+    r1 = svc.chat(None, "想学Java", "web")
+    svc.chat(r1["conversationId"], "还有别的吗", "web")
+
+    second_turn_messages = llm._calls[1]
+    joined = " ".join(m["content"] for m in second_turn_messages)
+    assert "已识别方向" in joined
+    assert "Java" in joined

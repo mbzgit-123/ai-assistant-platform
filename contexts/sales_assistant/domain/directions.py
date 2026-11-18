@@ -3,7 +3,7 @@ AI_POSITIONS = ["大模型算法岗", "大模型应用开发岗"]
 
 
 def normalize_direction(text: str | None) -> str | None:
-    if not text:
+    if not text or not isinstance(text, str):
         return None
     t = text.strip().lower()
     if "java" in t or "后端" in t:
@@ -18,7 +18,7 @@ def normalize_direction(text: str | None) -> str | None:
 
 
 def normalize_position(text: str | None) -> str | None:
-    if not text:
+    if not text or not isinstance(text, str):
         return None
     t = text.strip().lower()
     if "算法" in t:

@@ -25,6 +25,11 @@ def test_normalize_direction_unclear_returns_none():
     assert normalize_direction("随便") is None
 
 
+def test_normalize_direction_non_string_returns_none():
+    assert normalize_direction(123) is None
+    assert normalize_direction(["AI"]) is None
+
+
 def test_normalize_position_known():
     assert normalize_position("大模型算法岗") == "大模型算法岗"
     assert normalize_position("算法岗") == "大模型算法岗"
@@ -35,6 +40,11 @@ def test_normalize_position_unknown_returns_none():
     assert normalize_position("随便") is None
     assert normalize_position("") is None
     assert normalize_position(None) is None
+
+
+def test_normalize_position_non_string_returns_none():
+    assert normalize_position(123) is None
+    assert normalize_position({"x": 1}) is None
 
 
 def test_match_faq_enrollment_flow_exact_answer():
