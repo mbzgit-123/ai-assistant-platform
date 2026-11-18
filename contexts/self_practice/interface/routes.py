@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
 
-from api.dependencies import get_practice_service
-from api.schemas import ok
-from api.schemas.practice import StartPracticeRequest, SubmitPracticeRequest
 from contexts.self_practice.application.service import PracticeService
+from contexts.self_practice.interface.dependencies import get_practice_service
+from contexts.self_practice.interface.schemas import StartPracticeRequest, SubmitPracticeRequest
 from shared.infrastructure.observability.tracing import get_trace_id
+from shared.infrastructure.web.response import ok
 
 router = APIRouter(prefix="/api/v1/practice", tags=["practice"])
 

@@ -7,7 +7,7 @@ from shared.infrastructure.db.base import Base
 import shared.infrastructure.db.models  # noqa: F401
 from shared.infrastructure.db.models.sync_cache import Course
 from api.main import create_app
-from api.dependencies import get_sales_chat_service
+from contexts.sales_assistant.interface.dependencies import get_sales_chat_service
 from shared.infrastructure.db.session import get_session
 from shared.infrastructure.llm.fake import FakeLLMAdapter
 from shared.infrastructure.memory.in_memory import InMemoryStore

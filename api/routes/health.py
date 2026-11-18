@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from api.schemas import ok
 from shared.infrastructure.observability.tracing import get_trace_id
+from shared.infrastructure.web.response import ok
 
 router = APIRouter()
 

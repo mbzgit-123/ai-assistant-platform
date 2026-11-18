@@ -9,7 +9,7 @@ from shared.infrastructure.db.base import Base
 import shared.infrastructure.db.models  # noqa: F401
 from shared.infrastructure.db.models.sync_cache import Chapter, Video, VideoAnnotation
 from api.main import create_app
-from api.dependencies import get_practice_service
+from contexts.self_practice.interface.dependencies import get_practice_service
 from shared.infrastructure.db.session import get_session
 from shared.infrastructure.llm.fake import FakeLLMAdapter
 from contexts.exam_paper_generation.infrastructure.adapter import QuestionGenerationAdapter
