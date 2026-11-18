@@ -40,7 +40,12 @@ class GradingAdapter:
 
     def _build_prompt(self, question: Question, answer_content: dict) -> list[dict[str, str]]:
         payload = json.dumps(
-            {"reference_answer": question.reference_answer, "answer": answer_content},
+            {
+                "question_type": question.question_type,
+                "content": question.content,
+                "reference_answer": question.reference_answer,
+                "answer": answer_content,
+            },
             ensure_ascii=False,
         )
         return [

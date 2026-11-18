@@ -5,6 +5,7 @@ from shared.infrastructure.db.base import Base
 import shared.infrastructure.db.models  # noqa: F401
 from shared.infrastructure.db.models.sync_cache import Video, VideoAnnotation, Chapter
 from shared.infrastructure.llm.fake import FakeLLMAdapter
+from shared.infrastructure.llm.port import LLMResult
 from contexts.exam_paper_generation.infrastructure.adapter import QuestionGenerationAdapter
 
 
@@ -12,6 +13,16 @@ def _session():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return Session(engine)
+
+
+class _SpyLLM:
+    def __init__(self, response: str):
+        self._response = response
+        self.messages: list[list[dict[str, str]]] = []
+
+    def chat(self, messages: list[dict[str, str]]) -> LLMResult:
+        self.messages.append(messages)
+        return LLMResult(content=self._response)
 
 
 def test_plan_counts_reads_durations():
@@ -71,3 +82,38 @@ def test_generate_by_video_anchor_failure_returns_empty():
     s.commit()
     a = QuestionGenerationAdapter(s, FakeLLMAdapter(responses=[]))
     assert a.generate_by_video("v1", 3) == []
+
+
+def test_generate_by_video_fallback_range_used_on_anchor_failure():
+    s = _session()
+    s.add_all([
+        Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=600),
+        VideoAnnotation(video_id="v1", chapter_id="c1",
+                        start_sentence="不存在", end_sentence="也不存在",
+                        fallback_range="2.1~2.3"),
+        Chapter(chapter_id="c1", title="ch", content_md="## 2.1 开头\n知识点内容\n## 2.3 结尾"),
+    ])
+    s.commit()
+    llm = FakeLLMAdapter(responses=[
+        '[{"content": {"stem": "q", "options": ["A", "B", "C", "D"]}, "reference_answer": {"correct": "A"}, "explanation": "x"}]',
+        '[{"content": {"stem": "q"}, "reference_answer": {"points": ["p"]}, "explanation": "x"}]',
+        '[{"content": {"scenario": "s", "task": "t"}, "reference_answer": {"points": ["p"]}, "explanation": "x"}]',
+    ])
+    a = QuestionGenerationAdapter(s, llm)
+    qs = a.generate_by_video("v1", 3)
+    assert len(qs) == 3
+
+
+def test_generate_by_video_prompt_includes_sliced_content():
+    s = _session()
+    s.add_all([
+        Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=600),
+        VideoAnnotation(video_id="v1", chapter_id="c1", start_sentence="S", end_sentence="E"),
+        Chapter(chapter_id="c1", title="ch", content_md="S 闭包与作用域 E"),
+    ])
+    s.commit()
+    spy = _SpyLLM("[]")
+    a = QuestionGenerationAdapter(s, spy)
+    a.generate_by_video("v1", 3)
+    joined = " ".join(str(m) for m in spy.messages)
+    assert "闭包与作用域" in joined

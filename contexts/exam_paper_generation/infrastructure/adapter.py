@@ -17,6 +17,13 @@ from shared.infrastructure.observability.logging import get_logger
 
 logger = get_logger(__name__)
 
+_SCHEMAS = {
+    "choice": '{"content": {"stem": str, "options": [str, str, str, str]}, "reference_answer": {"correct": str}, "explanation": str}',
+    "short_answer": '{"content": {"stem": str}, "reference_answer": {"points": [str]}, "explanation": str}',
+    "scenario": '{"content": {"scenario": str, "task": str}, "reference_answer": {"points": [str]}, "explanation": str}',
+    "code": '{"content": {"stem": str, "code": str}, "reference_answer": {"points": [str]}, "explanation": str}',
+}
+
 
 class QuestionGenerationAdapter:
     def __init__(self, session: Session, llm: LLMPort):
@@ -41,13 +48,8 @@ class QuestionGenerationAdapter:
         if chapter is None or chapter.content_md is None:
             logger.warning("chapter_content_missing", video_id=video_id)
             return []
-        sliced = slice_content_md(
-            chapter.content_md,
-            annotation.start_sentence or "",
-            annotation.end_sentence or "",
-        )
+        sliced = self._slice(chapter.content_md, annotation)
         if sliced is None:
-            # v1.0 不解析 fallback_range；坏锚点干净跳过该视频
             logger.warning("anchor_slice_failed", video_id=video_id)
             return []
         text = split_long_interval(sliced)
@@ -58,11 +60,11 @@ class QuestionGenerationAdapter:
         for qtype, n in types.items():
             if n <= 0:
                 continue
-            questions.extend(self._generate_type(video_id, qtype, n))
+            questions.extend(self._generate_type(video_id, qtype, n, text))
         return questions
 
-    def _generate_type(self, video_id: str, qtype: str, n: int) -> list[Question]:
-        prompt = self._build_prompt(qtype, n)
+    def _generate_type(self, video_id: str, qtype: str, n: int, text: str) -> list[Question]:
+        prompt = self._build_prompt(qtype, n, text)
         for _ in range(2):  # 初次 + 重试一次
             result = self._llm.chat(prompt)
             try:
@@ -91,8 +93,46 @@ class QuestionGenerationAdapter:
             )
         return questions
 
-    def _build_prompt(self, qtype: str, n: int) -> list[dict[str, str]]:
+    def _slice(self, content_md: str, annotation: VideoAnnotation) -> str | None:
+        sliced = slice_content_md(
+            content_md,
+            annotation.start_sentence or "",
+            annotation.end_sentence or "",
+        )
+        if sliced is not None:
+            return sliced
+        fallback = annotation.fallback_range or ""
+        if "~" not in fallback:
+            return None
+        start_marker, end_marker = fallback.split("~", 1)
+        return self._slice_by_range(content_md, start_marker.strip(), end_marker.strip())
+
+    def _slice_by_range(self, content_md: str, start_marker: str, end_marker: str) -> str | None:
+        if not start_marker or not end_marker:
+            return None
+        lines = content_md.split("\n")
+        start_i: int | None = None
+        end_i: int | None = None
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if start_i is None and stripped.startswith("#") and start_marker in stripped:
+                start_i = i
+            elif start_i is not None and stripped.startswith("#") and end_marker in stripped:
+                end_i = i
+                break
+        if start_i is None or end_i is None:
+            return None
+        return "\n".join(lines[start_i : end_i + 1])
+
+    def _build_prompt(self, qtype: str, n: int, text: str) -> list[dict[str, str]]:
+        schema = _SCHEMAS.get(qtype, _SCHEMAS["short_answer"])
         return [
             {"role": "system", "content": "你是出题 Agent，输出 JSON 数组。"},
-            {"role": "user", "content": f"生成 {n} 道 {qtype} 题。"},
+            {
+                "role": "user",
+                "content": (
+                    f"根据以下课程内容生成 {n} 道「{qtype}」题，"
+                    f"每道题严格按 JSON 结构输出：{schema}。\n\n课程内容：\n{text}"
+                ),
+            },
         ]
