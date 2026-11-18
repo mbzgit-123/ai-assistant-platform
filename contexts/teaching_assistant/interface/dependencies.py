@@ -14,15 +14,25 @@ from shared.infrastructure.llm.factory import get_llm
 _embedding = HashEmbedding()
 _vector_store = InMemoryVectorStore(_embedding)
 _handoff = StubHandoff()
+_indexed = False
 
 
-def get_teaching_assistant_service(session: Session = Depends(get_session)) -> TeachingAssistantService:
-    llm = get_llm(get_settings())
+def _ensure_indexed(session: Session) -> None:
+    """首次调用时读全部章节 → 分块 → embed → upsert；之后跳过（幂等，跨请求存活）。"""
+    global _indexed
+    if _indexed:
+        return
     repo = TeachingRepository(session)
     for chapter in repo.list_chapters():
         _vector_store.upsert(
             build_chunks(chapter.chapter_id, chapter.course_id, chapter.title, chapter.content_md)
         )
+    _indexed = True
+
+
+def get_teaching_assistant_service(session: Session = Depends(get_session)) -> TeachingAssistantService:
+    llm = get_llm(get_settings())
+    _ensure_indexed(session)
     return TeachingAssistantService(
         llm=llm,
         embedding=_embedding,
