@@ -83,3 +83,26 @@ def test_profile_accuracy_ignores_ungraded_answers():
     )
     p = _svc(data).analyze("s1").profile
     assert p.overall_accuracy == 1.0
+
+
+def test_trend_buckets_accuracy_by_chapter_and_day():
+    data = _StubData(
+        records=[
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=True, answered_at=datetime(2026, 11, 1, 9, 0)),
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=False, answered_at=datetime(2026, 11, 1, 10, 0)),
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=True, answered_at=datetime(2026, 11, 8, 9, 0)),
+        ],
+    )
+    trend = _svc(data).analyze("s1").trend
+    assert [t.period for t in trend] == ["2026-11-01", "2026-11-08"]
+    assert [t.accuracy for t in trend] == [0.5, 1.0]
+    assert all(t.chapter_id == "ch1" for t in trend)
+
+
+def test_trend_ignores_answers_without_chapter():
+    data = _StubData(
+        records=[
+            AnswerRecord(chapter_id=None, is_correct=True, answered_at=datetime(2026, 11, 1)),
+        ],
+    )
+    assert _svc(data).analyze("s1").trend == []
