@@ -4,11 +4,17 @@ from contexts.learning_analytics.domain.analysis import (
     MasteryTrendPoint,
     Profile,
     StudentAnalysis,
+    WeakPoint,
 )
 from contexts.learning_analytics.domain.ports import AnswerRecord, LearningDataPort
 from shared.infrastructure.llm.port import LLMPort
 
 SUBJECTIVE_TYPES = ("short_answer", "scenario", "code")
+WEAK_ACCURACY_THRESHOLD = 0.6
+MAX_WEAK_POINTS = 3
+WEAK_POINT_SYSTEM_PROMPT = (
+    "你是学习分析助手。根据章节正确率，用一句话给出薄弱点归因与改进建议。"
+)
 
 
 class LearningAnalyticsService:
@@ -22,7 +28,7 @@ class LearningAnalyticsService:
             student_id=student_id,
             profile=self._build_profile(student_id, records),
             trend=self._build_trend(records),
-            weak_points=[],
+            weak_points=self._build_weak_points(records),
         )
 
     def _build_trend(self, records: list[AnswerRecord]) -> list[MasteryTrendPoint]:
@@ -44,6 +50,56 @@ class LearningAnalyticsService:
             )
             if graded > 0
         ]
+
+    def _build_weak_points(self, records: list[AnswerRecord]) -> list[WeakPoint]:
+        chapters: dict[str, dict] = {}
+        order: list[str] = []
+        for r in records:
+            if r.chapter_id is None:
+                continue
+            if r.chapter_id not in chapters:
+                chapters[r.chapter_id] = {"correct": 0, "graded": 0, "title": r.chapter_title}
+                order.append(r.chapter_id)
+            entry = chapters[r.chapter_id]
+            if r.is_correct is True:
+                entry["correct"] += 1
+            if r.is_correct is not None:
+                entry["graded"] += 1
+
+        weak: list[tuple[str, str | None, float]] = []
+        for cid in order:
+            entry = chapters[cid]
+            if entry["graded"] == 0:
+                continue
+            accuracy = entry["correct"] / entry["graded"]
+            if accuracy < WEAK_ACCURACY_THRESHOLD:
+                weak.append((cid, entry["title"], accuracy))
+
+        weak.sort(key=lambda item: (item[2], item[0]))
+        return [
+            WeakPoint(
+                chapter_id=cid,
+                chapter_title=title,
+                accuracy=accuracy,
+                reason=self._reason_for(title, accuracy),
+            )
+            for cid, title, accuracy in weak[:MAX_WEAK_POINTS]
+        ]
+
+    def _reason_for(self, chapter_title: str | None, accuracy: float) -> str:
+        result = self._llm.chat(
+            [
+                {"role": "system", "content": WEAK_POINT_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"章节「{chapter_title}」正确率 {accuracy:.0%}，请一句话归因。",
+                },
+            ]
+        )
+        content = result.content.strip()
+        if content:
+            return content
+        return f"章节「{chapter_title}」正确率 {accuracy:.0%}，建议回看对应视频并加强练习。"
 
     def _build_profile(self, student_id: str, records: list[AnswerRecord]) -> Profile:
         correct = sum(1 for r in records if r.is_correct is True)

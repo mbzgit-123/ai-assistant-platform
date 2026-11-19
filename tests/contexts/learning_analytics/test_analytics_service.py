@@ -106,3 +106,54 @@ def test_trend_ignores_answers_without_chapter():
         ],
     )
     assert _svc(data).analyze("s1").trend == []
+
+
+def test_weak_points_flags_low_accuracy_chapters():
+    data = _StubData(
+        records=[
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=True),
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=False),
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=False),
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=False),
+            AnswerRecord(chapter_id="ch2", chapter_title="函数", is_correct=True),
+            AnswerRecord(chapter_id="ch2", chapter_title="函数", is_correct=True),
+            AnswerRecord(chapter_id="ch2", chapter_title="函数", is_correct=True),
+            AnswerRecord(chapter_id="ch2", chapter_title="函数", is_correct=False),
+        ],
+    )
+    weak = _svc(data).analyze("s1").weak_points
+    assert len(weak) == 1
+    assert weak[0].chapter_id == "ch1"
+    assert weak[0].chapter_title == "循环"
+    assert weak[0].accuracy == 0.25
+    assert weak[0].reason == "归因"
+
+
+def test_weak_points_fallback_when_llm_empty():
+    data = _StubData(
+        records=[
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=False),
+        ],
+    )
+    svc = LearningAnalyticsService(data, FakeLLMAdapter(responses=[""]))
+    weak = svc.analyze("s1").weak_points
+    assert weak[0].reason == "章节「循环」正确率 0%，建议回看对应视频并加强练习。"
+
+
+def test_weak_points_no_weak_chapters_returns_empty():
+    data = _StubData(
+        records=[
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=True),
+        ],
+    )
+    assert _svc(data).analyze("s1").weak_points == []
+
+
+def test_weak_points_limits_to_three_weakest():
+    records = []
+    for i in range(5):
+        records.append(AnswerRecord(chapter_id=f"ch{i}", chapter_title=f"章节{i}", is_correct=False))
+    data = _StubData(records=records)
+    weak = _svc(data).analyze("s1").weak_points
+    assert len(weak) == 3
+    assert [w.chapter_id for w in weak] == ["ch0", "ch1", "ch2"]
