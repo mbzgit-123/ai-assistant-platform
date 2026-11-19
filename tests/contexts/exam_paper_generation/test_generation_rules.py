@@ -31,8 +31,10 @@ def test_split_long_interval_cuts_at_paragraph_boundary():
     assert result.endswith(("段落0", "段落1", "段落2")) or result
 
 
-def test_has_code_block():
-    assert has_code_block("说明文字\n```python\nprint(1)\n```") is True
+def test_has_code_block_requires_more_than_10_lines():
+    long_block = "```python\n" + "\n".join(f"line{i}" for i in range(11)) + "\n```"
+    assert has_code_block("说明文字\n" + long_block) is True
+    assert has_code_block("说明文字\n```python\nprint(1)\n```") is False
     assert has_code_block("纯文字无代码") is False
 
 
@@ -48,17 +50,17 @@ def test_count_for_duration_buckets():
 
 
 def test_allocate_types_no_code():
-    assert allocate_types(3, False) == {"choice": 1, "short_answer": 1, "scenario": 1, "code": 0}
+    assert allocate_types(3, False) == {"multi_choice": 1, "short_answer": 1, "scenario": 1, "code_fill": 0}
 
 
 def test_allocate_types_code_present():
-    assert allocate_types(4, True) == {"choice": 1, "short_answer": 1, "scenario": 1, "code": 1}
-    assert allocate_types(10, True) == {"choice": 2, "short_answer": 2, "scenario": 3, "code": 3}
-    assert allocate_types(15, True) == {"choice": 4, "short_answer": 3, "scenario": 4, "code": 4}
+    assert allocate_types(4, True) == {"multi_choice": 1, "short_answer": 1, "scenario": 1, "code_fill": 1}
+    assert allocate_types(10, True) == {"multi_choice": 2, "short_answer": 2, "scenario": 3, "code_fill": 3}
+    assert allocate_types(15, True) == {"multi_choice": 4, "short_answer": 3, "scenario": 4, "code_fill": 4}
 
 
 def test_allocate_types_no_code_big():
-    assert allocate_types(15, False) == {"choice": 6, "short_answer": 5, "scenario": 4, "code": 0}
+    assert allocate_types(15, False) == {"multi_choice": 6, "short_answer": 5, "scenario": 4, "code_fill": 0}
 
 
 def test_allocate_types_sum_equals_total():
