@@ -5,6 +5,7 @@ class StartPracticeRequest(BaseModel):
     studentId: str
     chapterId: str
     videoIds: list[str]
+    confirm: bool = False
 
 
 class AnswerItem(BaseModel):

@@ -54,6 +54,20 @@ def test_start_admission_blocked():
         svc.start_practice("stu", "c1", ["v1"])
 
 
+def test_start_soft_requires_confirm():
+    svc = _service(videos=[Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=1800)])
+    with pytest.raises(BadRequestError):
+        svc.start_practice("stu", "c1", ["v1"])
+    result = svc.start_practice("stu", "c1", ["v1"], confirm=True)
+    assert result["practiceId"].startswith("pr_")
+
+
+def test_start_over_limit_blocked():
+    svc = _service(videos=[Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=5401)])
+    with pytest.raises(BadRequestError):
+        svc.start_practice("stu", "c1", ["v1"], confirm=True)
+
+
 def test_start_generates_and_persists():
     svc = _service(videos=[
         Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600),

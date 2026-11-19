@@ -30,13 +30,21 @@ class PracticeService:
     def available_videos(self, student_id: str, chapter_id: str) -> list[dict]:
         return self._repo.list_completed_videos(student_id, chapter_id)
 
-    def start_practice(self, student_id: str, chapter_id: str, video_ids: list[str]) -> dict:
+    def start_practice(
+        self,
+        student_id: str,
+        chapter_id: str,
+        video_ids: list[str],
+        confirm: bool = False,
+    ) -> dict:
         durations = self._repo.get_video_durations(video_ids)
         admission = check_admission(sum(durations.values()))
-        if admission.level != "allow":
-            raise BadRequestError(
-                f"累计时长不足 60 分钟，还差 {admission.shortfall_seconds // 60} 分钟"
-            )
+        if admission.level == "block":
+            raise BadRequestError("累计时长不足 30 分钟")
+        if admission.level == "over":
+            raise BadRequestError("累计时长超过 90 分钟上限")
+        if admission.level == "soft" and not confirm:
+            raise BadRequestError("累计时长在 30–60 分钟，请确认后开始")
 
         practice_id = "pr_" + uuid.uuid4().hex[:12]
 

@@ -23,8 +23,12 @@ def test_check_admission_allow_boundary():
     assert r.level == "allow" and r.shortfall_seconds == 0
 
 
-def test_check_admission_allow_over():
-    assert check_admission(7200).level == "allow"
+def test_check_admission_allow_upper_boundary():
+    assert check_admission(5400).level == "allow"
+
+
+def test_check_admission_over():
+    assert check_admission(5401).level == "over"
 
 
 def test_check_admission_soft_upper_boundary():
