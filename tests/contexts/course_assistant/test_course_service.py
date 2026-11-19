@@ -9,15 +9,19 @@ from contexts.course_assistant.infrastructure.path_knowledge import InMemoryPath
 
 
 class _StubProgress:
-    def __init__(self, profile=None, titles=None):
+    def __init__(self, profile=None, titles=None, completed=None):
         self.profile = profile
         self.titles = titles or {}
+        self.completed = completed or set()
 
     def get_profile(self, student_id):
         return self.profile
 
     def get_course_title(self, course_id):
         return self.titles.get(course_id)
+
+    def completed_course_ids(self, student_id):
+        return self.completed
 
 
 def _svc(llm_responses=None, progress=None):
@@ -62,3 +66,15 @@ def test_generate_plan_unknown_position_raises():
     svc = _svc()
     with pytest.raises(BadRequestError):
         svc.generate_plan("不存在的岗位", "s1")
+
+
+def test_replan_removes_completed_courses():
+    svc = _svc(progress=_StubProgress(completed={"adv1"}, titles={"found": "基础", "adv1": "进阶"}))
+    plan = svc.replan("大模型应用开发岗", "s1")
+    assert [i.course_id for i in plan.items] == ["found"]
+
+
+def test_replan_all_completed_returns_empty():
+    svc = _svc(progress=_StubProgress(completed={"found", "adv1"}, titles={"found": "基础", "adv1": "进阶"}))
+    plan = svc.replan("大模型应用开发岗", "s1")
+    assert plan.items == []

@@ -26,6 +26,12 @@ class CourseAssistantService:
         items = [self._to_item(s) for s in steps]
         return LearningPlan(position=position, student_id=student_id, items=items)
 
+    def replan(self, position: str, student_id: str) -> LearningPlan:
+        plan = self.generate_plan(position, student_id)
+        done = self._progress.completed_course_ids(student_id)
+        plan.items = [i for i in plan.items if i.course_id not in done]
+        return plan
+
     def _has_foundation(self, student_id: str | None) -> bool:
         if student_id is None:
             return False
