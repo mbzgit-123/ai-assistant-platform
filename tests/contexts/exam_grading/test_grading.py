@@ -17,6 +17,14 @@ def test_grade_multi_choice_missing_selected():
     assert grade_multi_choice({}, {"correct": ["B"]}) == (False, 0.0)
 
 
+def test_grade_multi_choice_none_selected():
+    assert grade_multi_choice({"selected": None}, {"correct": ["B"]}) == (False, 0.0)
+
+
+def test_grade_multi_choice_none_correct():
+    assert grade_multi_choice({"selected": ["B"]}, {"correct": None}) == (False, 0.0)
+
+
 def test_grade_code_fill_all_correct():
     ref = {"answers": ["print", "return"]}
     assert grade_code_fill({"answers": ["print", "return"]}, ref) == (True, 1.0)
@@ -30,6 +38,11 @@ def test_grade_code_fill_partial_credit():
 def test_grade_code_fill_strips_whitespace():
     ref = {"answers": ["print", "return"]}
     assert grade_code_fill({"answers": [" print ", "return"]}, ref) == (True, 1.0)
+
+
+def test_grade_code_fill_none_answers():
+    ref = {"answers": ["print"]}
+    assert grade_code_fill({"answers": None}, ref) == (False, 0.0)
 
 
 def test_rubric_hits_counts_matching_points():

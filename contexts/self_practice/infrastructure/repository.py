@@ -134,7 +134,7 @@ class PracticeRepository:
         ]
 
     def _count_questions(self, practice_id: str) -> int:
-        stmt = select(PracticeQuestion).where(PracticeQuestion.practice_id == practice_id)
+        stmt = select(PracticeAnswer).where(PracticeAnswer.practice_id == practice_id)
         return len(self._session.scalars(stmt).all())
 
     def get_practice_result(self, practice_id: str) -> dict | None:

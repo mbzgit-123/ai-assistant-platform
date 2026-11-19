@@ -104,6 +104,25 @@ def test_generate_by_video_fallback_range_used_on_anchor_failure():
     assert len(qs) == 3
 
 
+def test_generate_by_video_code_fill_prompt_instructs_blanking():
+    s = _session()
+    code_lines = "\n".join(f"line_{i} = {i}" for i in range(12))  # 12 行 > 10 行
+    content = f"START 示例代码\n```python\n{code_lines}\n```\nEND"
+    s.add_all([
+        Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600),
+        VideoAnnotation(video_id="v1", chapter_id="c1", start_sentence="START", end_sentence="END"),
+        Chapter(chapter_id="c1", title="ch", content_md=content),
+    ])
+    s.commit()
+    spy = _SpyLLM("[]")
+    a = QuestionGenerationAdapter(s, spy)
+    a.generate_by_video("v1", 10)  # has_code=True 才会分配 code_fill
+    joined = " ".join(str(m) for m in spy.messages)
+    assert "______" in joined  # 挖空占位符
+    assert "挖空" in joined
+    assert "按顺序" in joined
+
+
 def test_generate_by_video_prompt_includes_sliced_content():
     s = _session()
     s.add_all([

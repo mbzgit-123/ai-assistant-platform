@@ -1,7 +1,7 @@
 def grade_multi_choice(answer_content: dict, reference_answer: dict) -> tuple[bool, float]:
     """不定项选择确定性判分：所选集合与正确集合完全一致才得分（0/1）。"""
-    selected = answer_content.get("selected", [])
-    correct = reference_answer.get("correct", [])
+    selected = answer_content.get("selected") or []
+    correct = reference_answer.get("correct") or []
     is_correct = set(selected) == set(correct)
     return (is_correct, 1.0 if is_correct else 0.0)
 
@@ -11,7 +11,7 @@ def grade_code_fill(answer_content: dict, reference_answer: dict) -> tuple[bool,
     expected = reference_answer.get("answers", [])
     if not expected:
         return (False, 0.0)
-    submitted = answer_content.get("answers", [])
+    submitted = answer_content.get("answers") or []
     correct_count = sum(
         1
         for a, e in zip(submitted, expected)

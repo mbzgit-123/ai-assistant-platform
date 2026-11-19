@@ -150,6 +150,35 @@ def test_submit_backfills_session_and_history_returns_it():
     assert s["questionCount"] == 10
 
 
+def test_history_question_count_reflects_reused_questions():
+    qgen = FakeQGen()
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    s = Session(engine)
+    s.add(Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600))
+    s.commit()
+    repo = PracticeRepository(s)
+    svc = PracticeService(qgen, FakeGrader(), repo)
+    first = svc.start_practice("stu", "c1", ["v1"])
+    svc.submit_practice(
+        first["practiceId"],
+        [{"questionId": q["questionId"], "answerContent": {"selected": ["A"]}}
+         for q in first["questions"]],
+    )
+    second = svc.start_practice("stu", "c1", ["v1"])  # 复用旧题
+    assert qgen.calls == 1  # 未重新生成
+    svc.submit_practice(
+        second["practiceId"],
+        [{"questionId": q["questionId"], "answerContent": {"selected": ["A"]}}
+         for q in second["questions"]],
+    )
+    history = svc.get_history("stu")
+    second_session = next(
+        s for s in history["sessions"] if s["practiceId"] == second["practiceId"]
+    )
+    assert second_session["questionCount"] == 10
+
+
 def test_history_orders_sessions_desc():
     svc = _service(videos=[Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600)])
     p1 = svc.start_practice("stu", "c1", ["v1"])["practiceId"]

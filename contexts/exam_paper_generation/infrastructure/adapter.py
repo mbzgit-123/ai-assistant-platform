@@ -24,6 +24,12 @@ _SCHEMAS = {
     "code_fill": '{"content": {"stem": str, "code": str}, "reference_answer": {"answers": [str]}, "explanation": str}',
 }
 
+_CODE_FILL_INSTRUCTION = (
+    "代码填空题要求：从代码块中挑选核心部分（变量名、关键字、关键表达式等）挖空，"
+    "不要整段覆盖；挖空处用 ______ 占位，content.code 为挖空后的完整代码，"
+    "reference_answer.answers 按顺序列出被挖空的原始内容。"
+)
+
 
 class QuestionGenerationAdapter:
     def __init__(self, session: Session, llm: LLMPort):
@@ -126,13 +132,16 @@ class QuestionGenerationAdapter:
 
     def _build_prompt(self, qtype: str, n: int, text: str) -> list[dict[str, str]]:
         schema = _SCHEMAS.get(qtype, _SCHEMAS["short_answer"])
+        instruction = (
+            f"根据以下课程内容生成 {n} 道「{qtype}」题，"
+            f"每道题严格按 JSON 结构输出：{schema}。"
+        )
+        if qtype == "code_fill":
+            instruction += f"\n{_CODE_FILL_INSTRUCTION}"
         return [
             {"role": "system", "content": "你是出题 Agent，输出 JSON 数组。"},
             {
                 "role": "user",
-                "content": (
-                    f"根据以下课程内容生成 {n} 道「{qtype}」题，"
-                    f"每道题严格按 JSON 结构输出：{schema}。\n\n课程内容：\n{text}"
-                ),
+                "content": instruction + f"\n\n课程内容：\n{text}",
             },
         ]

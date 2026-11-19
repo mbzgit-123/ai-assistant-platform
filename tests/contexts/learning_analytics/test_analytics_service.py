@@ -75,11 +75,12 @@ def test_profile_last_active_at_prefers_latest():
 
 
 def test_profile_excludes_deterministic_types_from_subjective_score():
-    # code_fill（及旧的 code）为确定性判分，不计入主观题平均分
+    # 不定项选择 / 代码填空为确定性判分，不计入主观题平均分
     data = _StubData(
         records=[
             AnswerRecord(question_type="short_answer", score=8.0),
-            AnswerRecord(question_type="code", score=10.0),
+            AnswerRecord(question_type="multi_choice", score=10.0),
+            AnswerRecord(question_type="code_fill", score=9.0),
         ],
     )
     p = _svc(data).analyze("s1").profile
