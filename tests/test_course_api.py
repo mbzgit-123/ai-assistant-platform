@@ -86,6 +86,13 @@ def test_course_refresh_endpoint_ok():
     assert r.json()["code"] == 0
 
 
+def test_course_refresh_requires_student_id():
+    c = _client()
+    r = c.post("/api/v1/course/plan/refresh", json={"position": "大模型应用开发岗"})
+    assert r.status_code == 400
+    assert r.json()["code"] == 40000
+
+
 def test_supervision_check_endpoint_ok():
     c = _client()
     r = c.post("/api/v1/course/supervision/check")

@@ -8,7 +8,7 @@ from contexts.course_assistant.interface.dependencies import (
     get_course_assistant_service,
     get_supervision_service,
 )
-from contexts.course_assistant.interface.schemas import PlanRequest
+from contexts.course_assistant.interface.schemas import PlanRequest, RefreshRequest
 from shared.infrastructure.observability.tracing import get_trace_id
 from shared.infrastructure.web.response import ok
 
@@ -28,7 +28,7 @@ async def plan(
 
 @router.post("/plan/refresh")
 async def refresh_plan(
-    body: PlanRequest,
+    body: RefreshRequest,
     service: CourseAssistantService = Depends(get_course_assistant_service),
 ):
     return ok(

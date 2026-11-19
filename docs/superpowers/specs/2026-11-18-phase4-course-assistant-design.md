@@ -61,7 +61,7 @@
 
 ### 5.3 动态重规划（FR-007）
 
-- `replan(student_id)`：读 `StudentVideoProgress` 求已学完的 course_id 集合 → 从计划中剔除 → 返回剩余有序计划。
+- `replan(position, student_id)`：读 `StudentVideoProgress` 求已学完的 course_id 集合 → 从计划中剔除 → 返回剩余有序计划。`position` 用于重算路径（`Student` 无 `position` 字段，无法仅凭 `student_id` 推导），故刷新请求需同时携带岗位方向。
 - 无新表；进度来源即 `student_video_progress.completed_at`。
 
 ### 5.4 智能督学（FR-009）
@@ -77,7 +77,7 @@
 ### 5.5 API 面（`interface/routes.py`，prefix `/api/v1/course`）
 
 - `POST /plan`：`{position, studentId}` → 学习计划。
-- `POST /plan/refresh`：`{studentId}` → 重规划后的剩余计划。
+- `POST /plan/refresh`：`{position, studentId}` → 重规划后的剩余计划。
 - `POST /supervision/check`：运行督学检查 → 返回本次发出的通知列表。
 
 `api/main.py` 增加 `app.include_router(course_router)`。
