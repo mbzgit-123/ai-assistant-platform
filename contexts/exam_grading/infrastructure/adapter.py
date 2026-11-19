@@ -2,7 +2,7 @@ import json
 
 from sqlalchemy.orm import Session
 
-from contexts.exam_grading.domain.grading import grade_choice
+from contexts.exam_grading.domain.grading import grade_code_fill, grade_multi_choice
 from contexts.self_practice.domain.ports import GradeResult, Question
 from shared.infrastructure.llm.port import LLMPort
 from shared.infrastructure.observability.logging import get_logger
@@ -16,8 +16,11 @@ class GradingAdapter:
         self._llm = llm
 
     def grade(self, question: Question, answer_content: dict) -> GradeResult:
-        if question.question_type == "choice":
-            correct, score = grade_choice(answer_content, question.reference_answer)
+        if question.question_type == "multi_choice":
+            correct, score = grade_multi_choice(answer_content, question.reference_answer)
+            return GradeResult(correct, score, "正确" if correct else "错误")
+        if question.question_type == "code_fill":
+            correct, score = grade_code_fill(answer_content, question.reference_answer)
             return GradeResult(correct, score, "正确" if correct else "错误")
         return self._grade_subjective(question, answer_content)
 

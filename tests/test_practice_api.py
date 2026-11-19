@@ -67,9 +67,9 @@ def test_start_and_submit_roundtrip():
         s.add(VideoAnnotation(video_id="v1", chapter_id="c1", start_sentence="S", end_sentence="E"))
         s.add(Chapter(chapter_id="c1", title="ch", content_md="S 知识点内容 E"))
 
-    choice_items = [
+    multi_choice_items = [
         {"content": {"stem": "选择题", "options": ["A", "B", "C", "D"]},
-         "reference_answer": {"correct": "A"}, "explanation": "解析"}
+         "reference_answer": {"correct": ["A"]}, "explanation": "解析"}
         for _ in range(4)
     ]
     short_items = [
@@ -82,7 +82,7 @@ def test_start_and_submit_roundtrip():
         for _ in range(3)
     ]
     gen_responses = [
-        json.dumps(choice_items, ensure_ascii=False),
+        json.dumps(multi_choice_items, ensure_ascii=False),
         json.dumps(short_items, ensure_ascii=False),
         json.dumps(scenario_items, ensure_ascii=False),
     ]
@@ -95,8 +95,8 @@ def test_start_and_submit_roundtrip():
     data = start.json()["data"]
     pid = data["practiceId"]
     assert pid.startswith("pr_") and data["groupedByVideo"] is True
-    assert len(data["questions"]) == 10  # choice 4 + short_answer 3 + scenario 3
-    answers = [{"questionId": q["questionId"], "answerContent": {"selected": "A"}}
+    assert len(data["questions"]) == 10  # multi_choice 4 + short_answer 3 + scenario 3
+    answers = [{"questionId": q["questionId"], "answerContent": {"selected": ["A"]}}
                for q in data["questions"]]
     sub = c.post("/api/v1/practice/submit", json={"practiceId": pid, "answers": answers})
     assert sub.status_code == 200

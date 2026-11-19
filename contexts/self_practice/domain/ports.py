@@ -6,7 +6,7 @@ from typing import Protocol
 class Question:
     question_id: str
     video_id: str
-    question_type: str  # choice | short_answer | scenario | code
+    question_type: str  # multi_choice | short_answer | scenario | code_fill
     content: dict
     reference_answer: dict
     explanation: str

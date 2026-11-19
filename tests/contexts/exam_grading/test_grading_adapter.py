@@ -25,10 +25,17 @@ class _SpyLLM:
         return LLMResult(content=self._response)
 
 
-def test_grade_choice_deterministic():
+def test_grade_multi_choice_deterministic():
     a = GradingAdapter(_session(), FakeLLMAdapter())
-    q = Question("q1", "v1", "choice", {"stem": "s", "options": ["A", "B", "C", "D"]}, {"correct": "B"}, "exp")
-    r = a.grade(q, {"selected": "B"})
+    q = Question("q1", "v1", "multi_choice", {"stem": "s", "options": ["A", "B", "C", "D"]}, {"correct": ["B"]}, "exp")
+    r = a.grade(q, {"selected": ["B"]})
+    assert r.is_correct and r.score == 1.0
+
+
+def test_grade_code_fill_deterministic():
+    a = GradingAdapter(_session(), FakeLLMAdapter())
+    q = Question("q2", "v1", "code_fill", {"stem": "s", "code": "x = ______"}, {"answers": ["1"]}, "exp")
+    r = a.grade(q, {"answers": ["1"]})
     assert r.is_correct and r.score == 1.0
 
 
