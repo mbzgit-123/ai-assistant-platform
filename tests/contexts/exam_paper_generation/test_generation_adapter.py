@@ -44,16 +44,16 @@ def test_generate_by_video_parses_llm_json():
         Chapter(chapter_id="c1", title="ch", content_md="S 内容 E"),
     ])
     s.commit()
-    # allocate_types(3, False) = {choice:1, short_answer:1, scenario:1, code:0}
+    # allocate_types(3, False) = {multi_choice:1, short_answer:1, scenario:1, code_fill:0}
     llm = FakeLLMAdapter(responses=[
-        '[{"content": {"stem": "q", "options": ["A", "B", "C", "D"]}, "reference_answer": {"correct": "A"}, "explanation": "x"}]',
+        '[{"content": {"stem": "q", "options": ["A", "B", "C", "D"]}, "reference_answer": {"correct": ["A"]}, "explanation": "x"}]',
         '[{"content": {"stem": "q"}, "reference_answer": {"points": ["p"]}, "explanation": "x"}]',
         '[{"content": {"scenario": "s", "task": "t"}, "reference_answer": {"points": ["p"]}, "explanation": "x"}]',
     ])
     a = QuestionGenerationAdapter(s, llm)
     qs = a.generate_by_video("v1", 3)
     assert len(qs) == 3
-    assert {q.question_type for q in qs} == {"choice", "short_answer", "scenario"}
+    assert {q.question_type for q in qs} == {"multi_choice", "short_answer", "scenario"}
     assert all(q.video_id == "v1" for q in qs)
 
 

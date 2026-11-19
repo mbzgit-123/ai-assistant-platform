@@ -18,10 +18,10 @@ from shared.infrastructure.observability.logging import get_logger
 logger = get_logger(__name__)
 
 _SCHEMAS = {
-    "choice": '{"content": {"stem": str, "options": [str, str, str, str]}, "reference_answer": {"correct": str}, "explanation": str}',
+    "multi_choice": '{"content": {"stem": str, "options": [str, str, str, str]}, "reference_answer": {"correct": [str]}, "explanation": str}',
     "short_answer": '{"content": {"stem": str}, "reference_answer": {"points": [str]}, "explanation": str}',
     "scenario": '{"content": {"scenario": str, "task": str}, "reference_answer": {"points": [str]}, "explanation": str}',
-    "code": '{"content": {"stem": str, "code": str}, "reference_answer": {"points": [str]}, "explanation": str}',
+    "code_fill": '{"content": {"stem": str, "code": str}, "reference_answer": {"answers": [str]}, "explanation": str}',
 }
 
 
