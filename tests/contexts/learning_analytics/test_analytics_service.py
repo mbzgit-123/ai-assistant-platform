@@ -74,6 +74,18 @@ def test_profile_last_active_at_prefers_latest():
     assert p.last_active_at == t_answer
 
 
+def test_profile_excludes_deterministic_types_from_subjective_score():
+    # code_fill（及旧的 code）为确定性判分，不计入主观题平均分
+    data = _StubData(
+        records=[
+            AnswerRecord(question_type="short_answer", score=8.0),
+            AnswerRecord(question_type="code", score=10.0),
+        ],
+    )
+    p = _svc(data).analyze("s1").profile
+    assert p.subjective_avg_score == 8.0
+
+
 def test_profile_accuracy_ignores_ungraded_answers():
     data = _StubData(
         records=[

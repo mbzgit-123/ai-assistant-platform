@@ -9,7 +9,7 @@ from contexts.learning_analytics.domain.analysis import (
 from contexts.learning_analytics.domain.ports import AnswerRecord, LearningDataPort
 from shared.infrastructure.llm.port import LLMPort
 
-SUBJECTIVE_TYPES = ("short_answer", "scenario", "code")
+SUBJECTIVE_TYPES = ("short_answer", "scenario")
 WEAK_ACCURACY_THRESHOLD = 0.6
 MAX_WEAK_POINTS = 3
 WEAK_POINT_SYSTEM_PROMPT = (
