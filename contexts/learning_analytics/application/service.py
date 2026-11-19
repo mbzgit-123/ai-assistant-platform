@@ -87,19 +87,21 @@ class LearningAnalyticsService:
         ]
 
     def _reason_for(self, chapter_title: str | None, accuracy: float) -> str:
-        result = self._llm.chat(
-            [
-                {"role": "system", "content": WEAK_POINT_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"章节「{chapter_title}」正确率 {accuracy:.0%}，请一句话归因。",
-                },
-            ]
-        )
-        content = result.content.strip()
-        if content:
-            return content
-        return f"章节「{chapter_title}」正确率 {accuracy:.0%}，建议回看对应视频并加强练习。"
+        fallback = f"章节「{chapter_title}」正确率 {accuracy:.0%}，建议回看对应视频并加强练习。"
+        try:
+            result = self._llm.chat(
+                [
+                    {"role": "system", "content": WEAK_POINT_SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"章节「{chapter_title}」正确率 {accuracy:.0%}，请一句话归因。",
+                    },
+                ]
+            )
+            content = (result.content or "").strip()
+        except Exception:
+            return fallback
+        return content or fallback
 
     def _build_profile(self, student_id: str, records: list[AnswerRecord]) -> Profile:
         correct = sum(1 for r in records if r.is_correct is True)

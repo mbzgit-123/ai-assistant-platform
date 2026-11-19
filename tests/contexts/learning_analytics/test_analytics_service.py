@@ -140,6 +140,22 @@ def test_weak_points_fallback_when_llm_empty():
     assert weak[0].reason == "章节「循环」正确率 0%，建议回看对应视频并加强练习。"
 
 
+class _RaisingLLM:
+    def chat(self, messages):
+        raise RuntimeError("llm down")
+
+
+def test_weak_points_fallback_when_llm_raises():
+    data = _StubData(
+        records=[
+            AnswerRecord(chapter_id="ch1", chapter_title="循环", is_correct=False),
+        ],
+    )
+    svc = LearningAnalyticsService(data, _RaisingLLM())
+    weak = svc.analyze("s1").weak_points
+    assert weak[0].reason == "章节「循环」正确率 0%，建议回看对应视频并加强练习。"
+
+
 def test_weak_points_no_weak_chapters_returns_empty():
     data = _StubData(
         records=[
