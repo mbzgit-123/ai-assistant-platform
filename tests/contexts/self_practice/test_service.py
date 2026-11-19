@@ -23,9 +23,9 @@ class FakeQGen:
     def generate_by_video(self, video_id, count):
         self.calls += 1
         return [
-            Question(f"q_{video_id}_{i}", video_id, "choice",
+            Question(f"q_{video_id}_{i}", video_id, "multi_choice",
                      {"stem": "s", "options": ["A", "B", "C", "D"]},
-                     {"correct": "A"}, "exp")
+                     {"correct": ["A"]}, "exp")
             for i in range(count)
         ]
 
@@ -87,12 +87,28 @@ def test_start_reuses_without_regenerating():
     s.commit()
     repo = PracticeRepository(s)
     # 预置已有题目（复用）
-    repo.save_questions("pr_old", [Question("q_existing", "v1", "choice",
-        {"stem": "s", "options": ["A", "B", "C", "D"]}, {"correct": "A"}, "exp")])
+    repo.save_questions("pr_old", [Question("q_existing", "v1", "multi_choice",
+        {"stem": "s", "options": ["A", "B", "C", "D"]}, {"correct": ["A"]}, "exp")])
     svc = PracticeService(qgen, FakeGrader(), repo)
     result = svc.start_practice("stu", "c1", ["v1"])
     assert qgen.calls == 0  # 未调用生成
     assert [q["questionId"] for q in result["questions"]] == ["q_existing"]
+
+
+def test_start_regenerate_forces_regeneration():
+    qgen = FakeQGen()
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    s = Session(engine)
+    s.add(Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600))
+    s.commit()
+    repo = PracticeRepository(s)
+    repo.save_questions("pr_old", [Question("q_existing", "v1", "multi_choice",
+        {"stem": "s", "options": ["A", "B", "C", "D"]}, {"correct": ["A"]}, "exp")])
+    svc = PracticeService(qgen, FakeGrader(), repo)
+    result = svc.start_practice("stu", "c1", ["v1"], regenerate=True)
+    assert qgen.calls == 1  # 强制重新生成
+    assert [q["questionId"] for q in result["questions"]] != ["q_existing"]
 
 
 def test_available_videos_only_completed():

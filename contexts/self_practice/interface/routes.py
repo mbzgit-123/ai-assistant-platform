@@ -24,7 +24,7 @@ async def start_practice(
     body: StartPracticeRequest,
     service: PracticeService = Depends(get_practice_service),
 ):
-    result = service.start_practice(body.studentId, body.chapterId, body.videoIds, body.confirm)
+    result = service.start_practice(body.studentId, body.chapterId, body.videoIds, body.confirm, body.regenerate)
     return ok(data=result, trace_id=get_trace_id())
 
 

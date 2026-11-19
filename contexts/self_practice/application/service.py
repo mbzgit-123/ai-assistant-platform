@@ -36,6 +36,7 @@ class PracticeService:
         chapter_id: str,
         video_ids: list[str],
         confirm: bool = False,
+        regenerate: bool = False,
     ) -> dict:
         durations = self._repo.get_video_durations(video_ids)
         admission = check_admission(sum(durations.values()))
@@ -51,12 +52,13 @@ class PracticeService:
         reused_questions: list[Question] = []
         new_videos: list[str] = []
         for vid in video_ids:
-            existing = self._repo.find_questions_by_video(vid)
-            if existing:
-                random.shuffle(existing)
-                reused_questions.extend(existing)
-            else:
-                new_videos.append(vid)
+            if not regenerate:
+                existing = self._repo.find_questions_by_video(vid)
+                if existing:
+                    random.shuffle(existing)
+                    reused_questions.extend(existing)
+                    continue
+            new_videos.append(vid)
 
         new_questions: list[Question] = []
         if new_videos:

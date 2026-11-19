@@ -6,6 +6,7 @@ class StartPracticeRequest(BaseModel):
     chapterId: str
     videoIds: list[str]
     confirm: bool = False
+    regenerate: bool = False
 
 
 class AnswerItem(BaseModel):
