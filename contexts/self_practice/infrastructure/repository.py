@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from contexts.self_practice.domain.ports import GradeResult, Question
+from shared.infrastructure.db.base import utcnow
 from shared.infrastructure.db.models.business import (
     PracticeAnswer,
     PracticeQuestion,
@@ -104,6 +105,37 @@ class PracticeRepository:
     def get_session_student_id(self, practice_id: str) -> str | None:
         session = self._session.get(PracticeSession, practice_id)
         return session.student_id if session else None
+
+    def mark_session_submitted(self, practice_id: str, total_score: float) -> None:
+        session = self._session.get(PracticeSession, practice_id)
+        if session is None:
+            return
+        session.status = "submitted"
+        session.submitted_at = utcnow()
+        session.total_score = total_score
+        self._session.commit()
+
+    def list_sessions(self, student_id: str) -> list[dict]:
+        stmt = (
+            select(PracticeSession)
+            .where(PracticeSession.student_id == student_id)
+            .order_by(PracticeSession.started_at.desc())
+        )
+        sessions = self._session.scalars(stmt).all()
+        return [
+            {
+                "practiceId": s.practice_id,
+                "startedAt": s.started_at,
+                "status": s.status,
+                "totalScore": float(s.total_score) if s.total_score is not None else None,
+                "questionCount": self._count_questions(s.practice_id),
+            }
+            for s in sessions
+        ]
+
+    def _count_questions(self, practice_id: str) -> int:
+        stmt = select(PracticeQuestion).where(PracticeQuestion.practice_id == practice_id)
+        return len(self._session.scalars(stmt).all())
 
     def get_practice_result(self, practice_id: str) -> dict | None:
         session = self._session.get(PracticeSession, practice_id)

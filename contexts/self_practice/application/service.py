@@ -99,6 +99,7 @@ class PracticeService:
         total = len(graded)
         correct = sum(1 for _, _, g in graded if g.is_correct)
         score = sum(g.score for _, _, g in graded)
+        self._repo.mark_session_submitted(practice_id, score)
         results = [
             {
                 "questionId": q.question_id,
@@ -118,6 +119,9 @@ class PracticeService:
 
     def get_practice(self, practice_id: str) -> dict | None:
         return self._repo.get_practice_result(practice_id)
+
+    def get_history(self, student_id: str) -> dict:
+        return {"sessions": self._repo.list_sessions(student_id)}
 
     def _to_public_question(self, q: Question) -> dict:
         return {

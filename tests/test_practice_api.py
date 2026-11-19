@@ -55,6 +55,14 @@ def test_available_videos_endpoint():
     assert r.json()["code"] == 0
 
 
+def test_history_endpoint_empty():
+    c = _client()
+    r = c.get("/api/v1/practice/history?studentId=stu")
+    assert r.status_code == 200
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["sessions"] == []
+
+
 def test_start_endpoint_admission_blocked():
     c = _client()
     r = c.post("/api/v1/practice/start", json={"studentId": "stu", "chapterId": "c1", "videoIds": []})

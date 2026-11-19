@@ -38,6 +38,15 @@ async def submit_practice(
     return ok(data=result, trace_id=get_trace_id())
 
 
+@router.get("/history")
+async def practice_history(
+    studentId: str,
+    service: PracticeService = Depends(get_practice_service),
+):
+    result = service.get_history(studentId)
+    return ok(data=result, trace_id=get_trace_id())
+
+
 @router.get("/{practiceId}")
 async def get_practice(
     practiceId: str,

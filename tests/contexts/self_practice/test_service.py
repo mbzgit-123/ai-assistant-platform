@@ -126,9 +126,33 @@ def test_submit_grades_and_returns_summary():
     svc = _service(videos=[Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600)])
     start = svc.start_practice("stu", "c1", ["v1"])
     pid = start["practiceId"]
-    answers = [{"questionId": q["questionId"], "answerContent": {"selected": "A"}}
+    answers = [{"questionId": q["questionId"], "answerContent": {"selected": ["A"]}}
                for q in start["questions"]]
     result = svc.submit_practice(pid, answers)
     assert result["summary"]["total"] == 10
     assert result["summary"]["correct"] == 10
     assert len(result["results"]) == 10
+
+
+def test_submit_backfills_session_and_history_returns_it():
+    svc = _service(videos=[Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600)])
+    start = svc.start_practice("stu", "c1", ["v1"])
+    pid = start["practiceId"]
+    answers = [{"questionId": q["questionId"], "answerContent": {"selected": ["A"]}}
+               for q in start["questions"]]
+    svc.submit_practice(pid, answers)
+    history = svc.get_history("stu")
+    assert len(history["sessions"]) == 1
+    s = history["sessions"][0]
+    assert s["practiceId"] == pid
+    assert s["status"] == "submitted"
+    assert s["totalScore"] == 10.0
+    assert s["questionCount"] == 10
+
+
+def test_history_orders_sessions_desc():
+    svc = _service(videos=[Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600)])
+    p1 = svc.start_practice("stu", "c1", ["v1"])["practiceId"]
+    p2 = svc.start_practice("stu", "c1", ["v1"])["practiceId"]
+    ids = [s["practiceId"] for s in svc.get_history("stu")["sessions"]]
+    assert ids == [p2, p1]
