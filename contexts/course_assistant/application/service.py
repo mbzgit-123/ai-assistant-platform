@@ -1,5 +1,17 @@
+from datetime import datetime, timezone
+
 from contexts.course_assistant.domain.path import LearningPlan, PathStep, PlanItem
-from contexts.course_assistant.domain.ports import PathKnowledgePort, ProgressPort
+from contexts.course_assistant.domain.ports import (
+    MessageChannelPort,
+    PathKnowledgePort,
+    ProgressPort,
+)
+from contexts.course_assistant.domain.supervision import (
+    ESCALATION_DAYS,
+    ESCALATION_MESSAGE,
+    IDLE_REMINDER_DAYS,
+    IDLE_REMINDER_MESSAGE,
+)
 from shared.common.exception.base import BadRequestError
 from shared.infrastructure.llm.port import LLMPort
 
@@ -57,3 +69,39 @@ class CourseAssistantService:
         )
         content = (result.content or "").strip()
         return content or f"学习《{title}》"
+
+
+class SupervisionService:
+    def __init__(self, progress: ProgressPort, message_channel: MessageChannelPort):
+        self._progress = progress
+        self._message_channel = message_channel
+
+    def check_and_notify(self, now: datetime | None = None) -> list[dict]:
+        now = now or datetime.now(timezone.utc).replace(tzinfo=None)
+        sent = []
+        for student_id in self._progress.enrolled_student_ids():
+            hit = self._detect(student_id, now)
+            if hit is None:
+                continue
+            content, level = hit
+            msg_id = self._message_channel.send(student_id, content)
+            sent.append(
+                {
+                    "studentId": student_id,
+                    "messageId": msg_id,
+                    "content": content,
+                    "level": level,
+                }
+            )
+        return sent
+
+    def _detect(self, student_id: str, now: datetime) -> tuple[str, str] | None:
+        last = self._progress.last_completed_at(student_id)
+        if last is None:
+            return ESCALATION_MESSAGE, "escalation"
+        days = (now - last).days
+        if days >= ESCALATION_DAYS:
+            return ESCALATION_MESSAGE, "escalation"
+        if days >= IDLE_REMINDER_DAYS:
+            return IDLE_REMINDER_MESSAGE, "reminder"
+        return None

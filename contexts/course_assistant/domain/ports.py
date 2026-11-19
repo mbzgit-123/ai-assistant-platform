@@ -15,6 +15,10 @@ class PathKnowledgePort(Protocol):
     def get_path(self, position: str) -> list[PathStep]: ...
 
 
+class MessageChannelPort(Protocol):
+    def send(self, student_id: str, content: str) -> str: ...
+
+
 class ProgressPort(Protocol):
     def get_profile(self, student_id: str) -> StudentProfile | None: ...
 
