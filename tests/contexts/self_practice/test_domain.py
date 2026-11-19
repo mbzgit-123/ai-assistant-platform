@@ -48,11 +48,11 @@ def test_merge_counts_small_unchanged():
     assert merge_counts([5, 5]) == [5, 5]
 
 
-def test_merge_counts_floor_beats_cap_when_too_many_videos():
-    # 11 个视频 × 保底 3 = 33 > 上限 30：保底优先，不抛异常、无负题量
+def test_merge_counts_floor_degrades_when_too_many_videos():
+    # 11 个视频 × 保底 3 = 33 > 上限 30：保底退化为 30 // 11 = 2，总量 ≤ 30
     result = merge_counts([3] * 11)
-    assert all(c >= 3 for c in result)
-    assert sum(result) >= 30
+    assert sum(result) <= 30
+    assert all(c >= 2 for c in result)
 
 
 def test_question_and_grade_result_dataclasses():
