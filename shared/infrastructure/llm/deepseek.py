@@ -40,3 +40,9 @@ class DeepSeekAdapter:
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
         )
+
+    def stream(self, messages: list[dict[str, str]]):
+        for chunk in self._get_client().stream(messages):
+            content = chunk.content
+            if content:
+                yield content

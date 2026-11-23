@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -11,3 +12,5 @@ class LLMResult:
 
 class LLMPort(Protocol):
     def chat(self, messages: list[dict[str, str]]) -> LLMResult: ...
+
+    def stream(self, messages: list[dict[str, str]]) -> Iterator[str]: ...

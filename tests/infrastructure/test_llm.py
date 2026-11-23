@@ -11,6 +11,29 @@ def test_fake_returns_responses_in_order():
     assert llm.chat([{"role": "user", "content": "hi"}]).content == "b"
 
 
+def test_fake_stream_yields_content_in_chunks():
+    llm = FakeLLMAdapter(responses=["abc"])
+    assert list(llm.stream([{"role": "user", "content": "hi"}])) == ["a", "b", "c"]
+
+
+class _Chunk:
+    def __init__(self, content):
+        self.content = content
+
+
+class _FakeStreamClient:
+    def stream(self, messages):
+        yield _Chunk("a")
+        yield _Chunk("")
+        yield _Chunk("b")
+
+
+def test_deepseek_stream_yields_chunk_contents():
+    adapter = DeepSeekAdapter("x", "http://x", "m", 1, 1)
+    adapter._client = _FakeStreamClient()
+    assert list(adapter.stream([{"role": "user", "content": "hi"}])) == ["a", "b"]
+
+
 def test_factory_fake():
     llm = get_llm(Settings(_env_file=None, llm_provider="fake"))
     assert isinstance(llm, FakeLLMAdapter)

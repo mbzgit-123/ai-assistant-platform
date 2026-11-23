@@ -1,4 +1,7 @@
+import json
+
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from contexts.sales_assistant.application.service import SalesChatService
 from contexts.sales_assistant.interface.dependencies import get_sales_chat_service
@@ -18,3 +21,15 @@ async def chat(
         data=service.chat(body.conversationId, body.message, body.source),
         trace_id=get_trace_id(),
     )
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    body: SalesChatRequest,
+    service: SalesChatService = Depends(get_sales_chat_service),
+):
+    def event_stream():
+        for event in service.chat_stream(body.conversationId, body.message, body.source):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

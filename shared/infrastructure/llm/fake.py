@@ -10,3 +10,9 @@ class FakeLLMAdapter:
         idx = min(self._calls, len(self._responses) - 1)
         self._calls += 1
         return LLMResult(content=self._responses[idx])
+
+    def stream(self, messages: list[dict[str, str]]):
+        idx = min(self._calls, len(self._responses) - 1)
+        self._calls += 1
+        for ch in self._responses[idx]:
+            yield ch
