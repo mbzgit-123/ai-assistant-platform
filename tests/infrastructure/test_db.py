@@ -8,24 +8,17 @@ from shared.infrastructure.db.models.sync_cache import Chapter
 
 
 EXPECTED_TABLES = {
-    "course_category",
     "course",
     "chapter",
     "video",
     "video_annotation",
     "student",
-    "teacher",
-    "student_teacher_relation",
     "student_course",
     "student_video_progress",
     "lead",
     "practice_session",
     "practice_question",
     "practice_answer",
-    "learning_profile",
-    "mastery_trend",
-    "weak_point",
-    "conversation_message",
 }
 
 

@@ -9,7 +9,8 @@ from contexts.exam_paper_generation.domain.anchor import (
     slice_content_md,
     split_long_interval,
 )
-from contexts.exam_paper_generation.domain.count import count_for_duration
+from contexts.exam_paper_generation.domain.clean import clean_markdown
+from contexts.exam_paper_generation.domain.count import count_for_duration, plan_question_counts
 from contexts.self_practice.domain.ports import Question
 from shared.infrastructure.db.models.sync_cache import Chapter, Video, VideoAnnotation
 from shared.infrastructure.llm.port import LLMPort
@@ -26,9 +27,38 @@ _SCHEMAS = {
 
 _CODE_FILL_INSTRUCTION = (
     "代码填空题要求：从代码块中挑选核心部分（变量名、关键字、关键表达式等）挖空，"
-    "不要整段覆盖；挖空处用 ______ 占位，content.code 为挖空后的完整代码，"
-    "reference_answer.answers 按顺序列出被挖空的原始内容。"
+    "不要整段覆盖；挖空处用 ___(1)___、___(2)___ 这种带编号的占位符表示，"
+    "content.code 为挖空后的完整代码，"
+    "reference_answer.answers 按编号顺序列出被挖空的原始内容。"
 )
+
+_MULTI_CHOICE_INSTRUCTION = (
+    "不定项选择题要求：正确选项数量不固定（1 个或多个），不要全部只设 1 个正确项；"
+    "至少一部分题目的正确项应有 2 个及以上。"
+    "content.options 按顺序放 4 个选项文本（不带字母），"
+    "reference_answer.correct 用选项字母列表表示正确项（如 [\"A\"] 或 [\"A\", \"C\"]）。"
+)
+
+
+def _extract_json_list(content: str) -> list | None:
+    """从 LLM 输出中提取题目列表，容忍 ```json 围栏与单对象输出。"""
+    text = (content or "").strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    try:
+        parsed = json.loads(text)
+    except (ValueError, TypeError):
+        return None
+    if isinstance(parsed, list):
+        return parsed
+    if isinstance(parsed, dict):
+        return [parsed]
+    return None
 
 
 class QuestionGenerationAdapter:
@@ -69,15 +99,33 @@ class QuestionGenerationAdapter:
             questions.extend(self._generate_type(video_id, qtype, n, text))
         return questions
 
+    def generate_from_document(self, course_document: str) -> list[Question]:
+        """由前端传入的视频内容直读出题（不查库、不做锚点切片）。
+
+        流程：清洗 courseDocument -> 按长度定题量 -> 分题型 LLM 出题。
+        合并出题的题目 video_id 置空（不属于单一视频）。
+        """
+        full_text = clean_markdown(course_document)
+        if not full_text:
+            return []
+
+        has_code = has_code_block(full_text, min_lines=15)
+        counts = plan_question_counts(len(full_text), has_code)
+        text = split_long_interval(full_text)
+
+        questions: list[Question] = []
+        for qtype, n in counts.items():
+            if n <= 0:
+                continue
+            questions.extend(self._generate_type("", qtype, n, text))
+        return questions
+
     def _generate_type(self, video_id: str, qtype: str, n: int, text: str) -> list[Question]:
         prompt = self._build_prompt(qtype, n, text)
         for _ in range(2):  # 初次 + 重试一次
             result = self._llm.chat(prompt)
-            try:
-                items = json.loads(result.content)
-            except (ValueError, TypeError):
-                continue
-            if isinstance(items, list):
+            items = _extract_json_list(result.content)
+            if items is not None:
                 return self._build_questions(video_id, qtype, items)
         logger.warning("question_generation_failed", video_id=video_id, question_type=qtype)
         return []
@@ -133,11 +181,17 @@ class QuestionGenerationAdapter:
     def _build_prompt(self, qtype: str, n: int, text: str) -> list[dict[str, str]]:
         schema = _SCHEMAS.get(qtype, _SCHEMAS["short_answer"])
         instruction = (
-            f"根据以下课程内容生成 {n} 道「{qtype}」题，"
+            f"下面是课程内容，请基于它生成 {n} 道「{qtype}」题，"
             f"每道题严格按 JSON 结构输出：{schema}。"
+            f"题干（stem，场景题对应 task）直接写成完整的问题，"
+            f"不要出现「根据课程内容」「根据以上内容」「结合所学」这类前缀。"
+            f"课程内容可能存在 OCR 或转写错别字，请按正确语义理解并纠正错字，"
+            f"不要将错字照搬进题干、选项或参考答案。"
         )
         if qtype == "code_fill":
             instruction += f"\n{_CODE_FILL_INSTRUCTION}"
+        elif qtype == "multi_choice":
+            instruction += f"\n{_MULTI_CHOICE_INSTRUCTION}"
         return [
             {"role": "system", "content": "你是出题 Agent，输出 JSON 数组。"},
             {

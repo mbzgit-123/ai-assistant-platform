@@ -23,13 +23,13 @@ def split_long_interval(text: str, max_chars: int = 2000) -> str:
 
 
 def has_code_block(text: str, min_lines: int = 10) -> bool:
-    """任一 ``` 围栏代码块行数 > min_lines 时返回 True。"""
+    """任一 ``` 围栏代码块行数 >= min_lines 时返回 True。"""
     in_block = False
     block_lines = 0
     for line in text.split("\n"):
         if line.strip().startswith("```"):
             if in_block:
-                if block_lines > min_lines:
+                if block_lines >= min_lines:
                     return True
                 in_block = False
                 block_lines = 0

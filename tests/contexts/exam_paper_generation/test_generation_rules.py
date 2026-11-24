@@ -3,7 +3,7 @@ from contexts.exam_paper_generation.domain.anchor import (
     split_long_interval,
     has_code_block,
 )
-from contexts.exam_paper_generation.domain.count import count_for_duration
+from contexts.exam_paper_generation.domain.count import count_for_duration, plan_question_counts
 from contexts.exam_paper_generation.domain.allocation import allocate_types
 
 
@@ -68,3 +68,31 @@ def test_allocate_types_sum_equals_total():
         for has_code in (False, True):
             d = allocate_types(total, has_code)
             assert sum(d.values()) == total
+
+
+def test_plan_question_counts_short():
+    assert plan_question_counts(1499, False) == {
+        "multi_choice": 10, "short_answer": 3, "code_fill": 0, "scenario": 1,
+    }
+
+
+def test_plan_question_counts_medium():
+    assert plan_question_counts(2000, False) == {
+        "multi_choice": 12, "short_answer": 4, "code_fill": 0, "scenario": 1,
+    }
+
+
+def test_plan_question_counts_long():
+    assert plan_question_counts(4001, False) == {
+        "multi_choice": 15, "short_answer": 5, "code_fill": 0, "scenario": 1,
+    }
+
+
+def test_plan_question_counts_boundaries_are_medium():
+    assert plan_question_counts(1500, False)["multi_choice"] == 12
+    assert plan_question_counts(4000, False)["multi_choice"] == 12
+
+
+def test_plan_question_counts_with_code():
+    assert plan_question_counts(2000, True)["code_fill"] == 1
+    assert plan_question_counts(2000, False)["code_fill"] == 0

@@ -1,43 +1,29 @@
 from shared.infrastructure.db.models.business import (
-    ConversationMessage,
     Lead,
-    LearningProfile,
-    MasteryTrend,
     PracticeAnswer,
     PracticeQuestion,
     PracticeSession,
-    WeakPoint,
 )
 from shared.infrastructure.db.models.sync_cache import (
     Chapter,
     Course,
-    CourseCategory,
     Student,
     StudentCourse,
-    StudentTeacherRelation,
     StudentVideoProgress,
-    Teacher,
     Video,
     VideoAnnotation,
 )
 
 __all__ = [
-    "CourseCategory",
     "Course",
     "Chapter",
     "Video",
     "VideoAnnotation",
     "Student",
-    "Teacher",
-    "StudentTeacherRelation",
     "StudentCourse",
     "StudentVideoProgress",
     "Lead",
     "PracticeSession",
     "PracticeQuestion",
     "PracticeAnswer",
-    "LearningProfile",
-    "MasteryTrend",
-    "WeakPoint",
-    "ConversationMessage",
 ]

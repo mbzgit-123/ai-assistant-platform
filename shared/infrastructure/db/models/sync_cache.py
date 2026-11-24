@@ -7,17 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from shared.infrastructure.db.base import Base, utcnow
 
 
-class CourseCategory(Base):
-    __tablename__ = "course_category"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    parent_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    name: Mapped[str] = mapped_column(String(128))
-    path: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow)
-
-
 class Course(Base):
     __tablename__ = "course"
 
@@ -78,21 +67,6 @@ class Student(Base):
     major: Mapped[str | None] = mapped_column(String(64), nullable=True)
     vip_flag: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     synced_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow)
-
-
-class Teacher(Base):
-    __tablename__ = "teacher"
-
-    teacher_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    name: Mapped[str | None] = mapped_column(String(64), nullable=True)
-
-
-class StudentTeacherRelation(Base):
-    __tablename__ = "student_teacher_relation"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    student_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    teacher_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class StudentCourse(Base):

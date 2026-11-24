@@ -127,11 +127,18 @@ class PracticeRepository:
                 "practiceId": s.practice_id,
                 "startedAt": s.started_at,
                 "status": s.status,
-                "totalScore": float(s.total_score) if s.total_score is not None else None,
+                "correctCount": self._count_correct(s.practice_id),
                 "questionCount": self._count_questions(s.practice_id),
             }
             for s in sessions
         ]
+
+    def _count_correct(self, practice_id: str) -> int:
+        stmt = select(PracticeAnswer).where(
+            PracticeAnswer.practice_id == practice_id,
+            PracticeAnswer.is_correct.is_(True),
+        )
+        return len(self._session.scalars(stmt).all())
 
     def _count_questions(self, practice_id: str) -> int:
         stmt = select(PracticeAnswer).where(PracticeAnswer.practice_id == practice_id)
@@ -155,6 +162,9 @@ class PracticeRepository:
             results.append(
                 {
                     "questionId": a.question_id,
+                    "questionType": question.question_type if question else None,
+                    "content": question.content if question else None,
+                    "answerContent": a.answer_content,
                     "isCorrect": bool(a.is_correct),
                     "score": float(a.score or 0.0),
                     "referenceAnswer": question.reference_answer if question else None,
@@ -164,6 +174,7 @@ class PracticeRepository:
             )
         return {
             "practiceId": practice_id,
+            "submittedAt": session.submitted_at,
             "summary": {"total": total, "correct": correct, "score": score},
             "results": results,
         }

@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends
 
 from contexts.self_practice.application.service import PracticeService
 from contexts.self_practice.interface.dependencies import get_practice_service
-from contexts.self_practice.interface.schemas import StartPracticeRequest, SubmitPracticeRequest
+from contexts.self_practice.interface.schemas import (
+    GeneratePracticeRequest,
+    GradePracticeRequest,
+    StartPracticeRequest,
+    SubmitPracticeRequest,
+)
 from shared.infrastructure.observability.tracing import get_trace_id
 from shared.infrastructure.web.response import ok
 
@@ -28,6 +33,16 @@ async def start_practice(
     return ok(data=result, trace_id=get_trace_id())
 
 
+@router.post("/generate")
+async def generate_practice(
+    body: GeneratePracticeRequest,
+    service: PracticeService = Depends(get_practice_service),
+):
+    videos = [v.model_dump() for v in body.videos]
+    result = service.generate_practice(body.studentId, body.courseDocument, videos)
+    return ok(data=result, trace_id=get_trace_id())
+
+
 @router.post("/submit")
 async def submit_practice(
     body: SubmitPracticeRequest,
@@ -35,6 +50,16 @@ async def submit_practice(
 ):
     answers = [a.model_dump() for a in body.answers]
     result = service.submit_practice(body.practiceId, answers)
+    return ok(data=result, trace_id=get_trace_id())
+
+
+@router.post("/grade")
+async def grade_practice(
+    body: GradePracticeRequest,
+    service: PracticeService = Depends(get_practice_service),
+):
+    answers = [a.model_dump() for a in body.answers]
+    result = service.grade_practice(body.practiceId, answers)
     return ok(data=result, trace_id=get_trace_id())
 
 
