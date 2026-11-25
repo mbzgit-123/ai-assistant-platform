@@ -5,7 +5,7 @@
 
 ## 1. 概述
 
-平台是一个**后端 AI 智能体中台**，覆盖「售前获客 → 课程匹配 → 学习规划 → 课后答疑 → 过程督学 → 自主练习 → 学情分析」全链路。采用 **DDD（限界上下文）+ 端口与适配器（Ports & Adapters）** 架构，模块化单体起步，通过接口隔离，某个上下文负载或团队需要时再拆微服务。
+平台是一个**后端 AI 智能体中台**，覆盖「售前获客 → 课程匹配 → 课后答疑 → 自主练习 → 学情分析」全链路。采用 **DDD（限界上下文）+ 端口与适配器（Ports & Adapters）** 架构，模块化单体起步，通过接口隔离，某个上下文负载或团队需要时再拆微服务。
 
 **技术栈**：Python 3.13 / FastAPI / SQLAlchemy 2.x / Pydantic v2 / DeepSeek（可注入 Mock）/ SQLite（默认，可切 MySQL）。
 
@@ -48,7 +48,7 @@ graph TB
 ```
 ai-assistant-platform/
 ├── api/                     # FastAPI 外壳：create_app、路由挂载、异常处理、健康检查
-├── contexts/                # 7 个限界上下文（业务领域）
+├── contexts/                # 6 个限界上下文（业务领域）
 ├── orchestrator/            # 意图路由骨架（当前为空占位）
 ├── shared/                  # 共享基础设施（纯技术能力）
 │   ├── common/              #   exception（统一异常/错误码）、util
@@ -74,7 +74,6 @@ ai-assistant-platform/
 |--------|-------|------|------|---------|
 | `sales_assistant` | 营销 Agent | 智能客服 / 线索留资 | 4 层 | `/api/v1/sales/*` |
 | `teaching_assistant` | 助教 Agent | 答疑 RAG / 转人工 | 4 层 | `/api/v1/teaching/*` |
-| `course_assistant` | 课程 Agent | 路径规划 + 督学 | 4 层 | `/api/v1/course/*` |
 | `learning_analytics` | 学情分析 Agent | 画像 / 趋势 / 薄弱点 | 4 层 | `/api/v1/analytics/*` |
 | `self_practice` | 自主练习 Agent | **编排者**：练习闭环 | 4 层 | `/api/v1/practice/*` |
 | `exam_paper_generation` | 出题 Agent | 生产者：出题 | 2 层（无 interface/application） | 无 |
@@ -93,7 +92,6 @@ graph TB
     subgraph leaf["叶子上下文（互相独立）"]
         sales["sales_assistant<br/>营销/客服"]
         teaching["teaching_assistant<br/>助教/答疑RAG"]
-        course["course_assistant<br/>课程/督学"]
         analytics["learning_analytics<br/>学情分析"]
         practice["self_practice<br/>自主练习·编排者"]
     end
@@ -107,7 +105,6 @@ graph TB
 
     API --> sales
     API --> teaching
-    API --> course
     API --> analytics
     API --> practice
 
@@ -116,7 +113,6 @@ graph TB
 
     sales --> SHARED
     teaching --> SHARED
-    course --> SHARED
     analytics --> SHARED
     practice --> SHARED
     gen --> SHARED
@@ -127,7 +123,7 @@ graph TB
 
 1. **所有上下文都依赖 `shared`**（LLM、DB、统一响应、日志等纯技术能力）。
 2. **`api` 依赖所有上下文的 `interface` 路由**，是唯一把各领域装配起来的地方。
-3. **五个叶子上下文互相独立**（`sales / teaching / course / analytics / self_practice` 之间不 import）。
+3. **四个叶子上下文互相独立**（`sales / teaching / analytics / self_practice` 之间不 import）。
 4. **出题 / 批改是「生产者」**：单向依赖 `self_practice.domain.ports`（import `Question` / `GradeResult` / 端口协议），但不依赖任何叶子上下文。`self_practice` 反过来不知道它们的存在。
 
 ## 6. 端口与适配器（自主练习闭环）
@@ -163,12 +159,12 @@ graph LR
 
 | 分组 | 文件 | 表 | 用途 |
 |------|------|-----|------|
-| **同步缓存** | `sync_cache.py` | `course` / `chapter` / `video` / `video_annotation` / `student` / `student_course` / `student_video_progress` 等 | 从外部系统同步的只读参考数据 |
-| **业务** | `business.py` | `lead` / `practice_session` / `practice_question` / `practice_answer` / `learning_profile` / `mastery_trend` / `weak_point` / `conversation_message` | 本平台自身产生的业务数据 |
+| **同步缓存** | `sync_cache.py` | `course` / `chapter` / `video` / `video_annotation` / `student` / `student_course` / `student_video_progress` | 从外部系统同步的只读参考数据 |
+| **业务** | `business.py` | `lead` / `practice_session` / `practice_question` / `practice_answer` | 本平台自身产生的业务数据 |
 
 ## 8. 运行时装配
 
-- `api/main.py::create_app()` 注册 TraceId 中间件、异常处理器、健康检查与 6 个上下文的 router。
+- `api/main.py::create_app()` 注册 TraceId 中间件、异常处理器、健康检查与 4 个业务上下文的 router。
 - 每个上下文在 `interface/dependencies.py` 用 FastAPI `Depends` 装配 service，注入 `LLMPort` 与各端口适配器。
 - 测试用 `sqlite://` 内存库 + `FakeLLMAdapter` + `app.dependency_overrides` 覆盖依赖。
 

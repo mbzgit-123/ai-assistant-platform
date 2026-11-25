@@ -28,7 +28,6 @@ type = independence
 modules =
     contexts.sales_assistant
     contexts.teaching_assistant
-    contexts.course_assistant
     contexts.learning_analytics
     contexts.self_practice
 
@@ -43,5 +42,4 @@ forbidden_modules =
     contexts.exam_grading
     contexts.sales_assistant
     contexts.teaching_assistant
-    contexts.course_assistant
     contexts.learning_analytics
