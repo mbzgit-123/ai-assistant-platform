@@ -39,7 +39,13 @@ async def generate_practice(
     service: PracticeService = Depends(get_practice_service),
 ):
     videos = [v.model_dump() for v in body.videos]
-    result = service.generate_practice(body.studentId, body.courseDocument, videos)
+    result = service.generate_practice(
+        body.studentId,
+        body.courseDocument,
+        videos,
+        course_id=body.courseId,
+        course_title=body.courseTitle,
+    )
     return ok(data=result, trace_id=get_trace_id())
 
 

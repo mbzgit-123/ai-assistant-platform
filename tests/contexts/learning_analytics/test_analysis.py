@@ -19,9 +19,9 @@ def test_student_analysis_to_dict_serializes_all_sections():
             subjective_avg_score=72.5,
             last_active_at=datetime(2026, 11, 18, 12, 0, 0),
         ),
-        trend=[MasteryTrendPoint(chapter_id="ch1", period="2026-11-18", accuracy=0.75)],
+        trend=[MasteryTrendPoint(course_id="ch1", course_title="循环结构", period="2026-11-18", accuracy=0.75)],
         weak_points=[
-            WeakPoint(chapter_id="ch2", chapter_title="循环结构", accuracy=0.4, reason="未掌握 break")
+            WeakPoint(course_id="ch2", course_title="循环结构", accuracy=0.4, reason="未掌握 break")
         ],
     )
     assert analysis.to_dict() == {
@@ -34,12 +34,12 @@ def test_student_analysis_to_dict_serializes_all_sections():
             "lastActiveAt": "2026-11-18T12:00:00",
         },
         "trend": [
-            {"chapterId": "ch1", "period": "2026-11-18", "accuracy": 0.75},
+            {"courseId": "ch1", "courseTitle": "循环结构", "period": "2026-11-18", "accuracy": 0.75},
         ],
         "weakPoints": [
             {
-                "chapterId": "ch2",
-                "chapterTitle": "循环结构",
+                "courseId": "ch2",
+                "courseTitle": "循环结构",
                 "accuracy": 0.4,
                 "reason": "未掌握 break",
             }

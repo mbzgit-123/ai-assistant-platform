@@ -91,16 +91,28 @@ class PracticeService:
         }
 
     def generate_practice(
-        self, student_id: str, course_document: str, videos: list[dict]
+        self,
+        student_id: str,
+        course_document: str,
+        videos: list[dict],
+        course_id: str = "",
+        course_title: str = "",
     ) -> dict:
         """由前端传入文档 + 视频列表出题（无时长校验、无复用）。
 
         courseDocument 携带完整内容，videos 仅提供 videoId 用于落库归属。
+        courseId/courseTitle 用于把整套题归属到课程，支撑学情分析按课程聚合。
         """
         video_ids = [v.get("videoId", "") for v in videos if v.get("videoId")]
         questions = self._qgen.generate_from_document(course_document)
         practice_id = "pr_" + uuid.uuid4().hex[:12]
-        self._repo.save_session(practice_id, student_id, video_ids)
+        self._repo.save_session(
+            practice_id,
+            student_id,
+            video_ids,
+            course_id=course_id or None,
+            course_title=course_title or None,
+        )
         self._repo.save_questions(practice_id, questions)
         return {
             "practiceId": practice_id,

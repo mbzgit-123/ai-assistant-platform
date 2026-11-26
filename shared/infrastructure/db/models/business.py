@@ -25,6 +25,8 @@ class PracticeSession(Base):
 
     practice_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     student_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    course_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    course_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     video_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

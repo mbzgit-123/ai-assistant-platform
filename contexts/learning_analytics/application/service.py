@@ -32,35 +32,39 @@ class LearningAnalyticsService:
         )
 
     def _build_trend(self, records: list[AnswerRecord]) -> list[MasteryTrendPoint]:
-        groups: dict[tuple[str, str], tuple[int, int]] = {}
+        groups: dict[tuple[str, str], dict] = {}
         for r in records:
-            if r.chapter_id is None or r.answered_at is None:
+            if r.course_id is None or r.answered_at is None:
                 continue
-            key = (r.chapter_id, r.answered_at.date().isoformat())
-            correct, graded = groups.get(key, (0, 0))
+            key = (r.course_id, r.answered_at.date().isoformat())
+            entry = groups.setdefault(key, {"correct": 0, "graded": 0, "title": r.course_title})
             if r.is_correct is True:
-                correct += 1
+                entry["correct"] += 1
             if r.is_correct is not None:
-                graded += 1
-            groups[key] = (correct, graded)
+                entry["graded"] += 1
         return [
-            MasteryTrendPoint(chapter_id=chapter_id, period=period, accuracy=correct / graded)
-            for (chapter_id, period), (correct, graded) in sorted(
+            MasteryTrendPoint(
+                course_id=course_id,
+                course_title=entry["title"],
+                period=period,
+                accuracy=entry["correct"] / entry["graded"],
+            )
+            for (course_id, period), entry in sorted(
                 groups.items(), key=lambda kv: (kv[0][1], kv[0][0])
             )
-            if graded > 0
+            if entry["graded"] > 0
         ]
 
     def _build_weak_points(self, records: list[AnswerRecord]) -> list[WeakPoint]:
-        chapters: dict[str, dict] = {}
+        courses: dict[str, dict] = {}
         order: list[str] = []
         for r in records:
-            if r.chapter_id is None:
+            if r.course_id is None:
                 continue
-            if r.chapter_id not in chapters:
-                chapters[r.chapter_id] = {"correct": 0, "graded": 0, "title": r.chapter_title}
-                order.append(r.chapter_id)
-            entry = chapters[r.chapter_id]
+            if r.course_id not in courses:
+                courses[r.course_id] = {"correct": 0, "graded": 0, "title": r.course_title}
+                order.append(r.course_id)
+            entry = courses[r.course_id]
             if r.is_correct is True:
                 entry["correct"] += 1
             if r.is_correct is not None:
@@ -68,7 +72,7 @@ class LearningAnalyticsService:
 
         weak: list[tuple[str, str | None, float]] = []
         for cid in order:
-            entry = chapters[cid]
+            entry = courses[cid]
             if entry["graded"] == 0:
                 continue
             accuracy = entry["correct"] / entry["graded"]
@@ -78,23 +82,23 @@ class LearningAnalyticsService:
         weak.sort(key=lambda item: (item[2], item[0]))
         return [
             WeakPoint(
-                chapter_id=cid,
-                chapter_title=title,
+                course_id=cid,
+                course_title=title,
                 accuracy=accuracy,
                 reason=self._reason_for(title, accuracy),
             )
             for cid, title, accuracy in weak[:MAX_WEAK_POINTS]
         ]
 
-    def _reason_for(self, chapter_title: str | None, accuracy: float) -> str:
-        fallback = f"章节「{chapter_title}」正确率 {accuracy:.0%}，建议回看对应视频并加强练习。"
+    def _reason_for(self, course_title: str | None, accuracy: float) -> str:
+        fallback = f"课程「{course_title}」正确率 {accuracy:.0%}，建议回看对应视频并加强练习。"
         try:
             result = self._llm.chat(
                 [
                     {"role": "system", "content": WEAK_POINT_SYSTEM_PROMPT},
                     {
                         "role": "user",
-                        "content": f"章节「{chapter_title}」正确率 {accuracy:.0%}，请一句话归因。",
+                        "content": f"课程「{course_title}」正确率 {accuracy:.0%}，请一句话归因。",
                     },
                 ]
             )

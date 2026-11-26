@@ -14,15 +14,16 @@ class Profile:
 
 @dataclass
 class MasteryTrendPoint:
-    chapter_id: str
+    course_id: str
     period: str
     accuracy: float
+    course_title: str | None = None
 
 
 @dataclass
 class WeakPoint:
-    chapter_id: str
-    chapter_title: str | None
+    course_id: str
+    course_title: str | None
     accuracy: float
     reason: str
 
@@ -49,13 +50,18 @@ class StudentAnalysis:
                 ),
             },
             "trend": [
-                {"chapterId": p.chapter_id, "period": p.period, "accuracy": p.accuracy}
+                {
+                    "courseId": p.course_id,
+                    "courseTitle": p.course_title,
+                    "period": p.period,
+                    "accuracy": p.accuracy,
+                }
                 for p in self.trend
             ],
             "weakPoints": [
                 {
-                    "chapterId": w.chapter_id,
-                    "chapterTitle": w.chapter_title,
+                    "courseId": w.course_id,
+                    "courseTitle": w.course_title,
                     "accuracy": w.accuracy,
                     "reason": w.reason,
                 }

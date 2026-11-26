@@ -4,7 +4,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from contexts.learning_analytics.domain.ports import AnswerRecord
-from shared.infrastructure.db.models.business import PracticeAnswer, PracticeQuestion
+from shared.infrastructure.db.models.business import (
+    PracticeAnswer,
+    PracticeQuestion,
+    PracticeSession,
+)
 from shared.infrastructure.db.models.sync_cache import (
     Chapter,
     StudentCourse,
@@ -45,16 +49,15 @@ class LearningRepository:
             select(
                 PracticeQuestion.question_type,
                 PracticeQuestion.video_id,
-                Video.chapter_id,
-                Chapter.title,
+                PracticeSession.course_id,
+                PracticeSession.course_title,
                 PracticeAnswer.is_correct,
                 PracticeAnswer.score,
                 PracticeAnswer.answered_at,
             )
             .select_from(PracticeAnswer)
             .join(PracticeQuestion, PracticeQuestion.question_id == PracticeAnswer.question_id)
-            .outerjoin(Video, Video.video_id == PracticeQuestion.video_id)
-            .outerjoin(Chapter, Chapter.chapter_id == Video.chapter_id)
+            .join(PracticeSession, PracticeSession.practice_id == PracticeAnswer.practice_id)
             .where(PracticeAnswer.student_id == student_id)
         )
         rows = self._session.execute(stmt).all()
@@ -62,8 +65,8 @@ class LearningRepository:
             AnswerRecord(
                 question_type=r.question_type,
                 video_id=r.video_id,
-                chapter_id=r.chapter_id,
-                chapter_title=r.title,
+                course_id=r.course_id,
+                course_title=r.course_title,
                 is_correct=r.is_correct,
                 score=float(r.score) if r.score is not None else None,
                 answered_at=r.answered_at,

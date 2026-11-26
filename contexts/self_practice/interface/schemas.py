@@ -33,6 +33,8 @@ class GeneratePracticeRequest(BaseModel):
     studentId: str
     courseDocument: str
     videos: list[PracticeVideoItem]
+    courseId: str = ""
+    courseTitle: str = ""
 
 
 class GradeAnswerItem(BaseModel):

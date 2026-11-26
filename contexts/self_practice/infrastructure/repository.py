@@ -48,11 +48,20 @@ class PracticeRepository:
         rows = self._session.scalars(stmt).all()
         return [self._to_question(r) for r in rows]
 
-    def save_session(self, practice_id: str, student_id: str, video_ids: list[str]) -> None:
+    def save_session(
+        self,
+        practice_id: str,
+        student_id: str,
+        video_ids: list[str],
+        course_id: str | None = None,
+        course_title: str | None = None,
+    ) -> None:
         self._session.add(
             PracticeSession(
                 practice_id=practice_id,
                 student_id=student_id,
+                course_id=course_id,
+                course_title=course_title,
                 video_ids=video_ids,
                 status="in_progress",
             )

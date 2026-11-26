@@ -7,7 +7,11 @@ from sqlalchemy.pool import StaticPool
 from contexts.learning_analytics.infrastructure.repository import LearningRepository
 from shared.infrastructure.db.base import Base, utcnow
 import shared.infrastructure.db.models  # noqa: F401
-from shared.infrastructure.db.models.business import PracticeAnswer, PracticeQuestion
+from shared.infrastructure.db.models.business import (
+    PracticeAnswer,
+    PracticeQuestion,
+    PracticeSession,
+)
 from shared.infrastructure.db.models.sync_cache import (
     Chapter,
     Course,
@@ -66,13 +70,14 @@ def test_enrolled_video_count():
     assert LearningRepository(s).enrolled_video_count("s1") == 2
 
 
-def test_answer_records_join_chapter_and_video():
+def test_answer_records_join_session_and_get_course():
     s = _session()
     t = utcnow()
     s.add_all(
         [
-            Chapter(chapter_id="ch1", course_id="c1", title="循环结构"),
-            Video(video_id="v1", chapter_id="ch1", title="视频1"),
+            PracticeSession(
+                practice_id="p1", student_id="s1", course_id="c1", course_title="循环结构"
+            ),
             PracticeQuestion(
                 question_id="q1", practice_id="p1", video_id="v1", question_type="choice"
             ),
@@ -93,8 +98,8 @@ def test_answer_records_join_chapter_and_video():
     r = records[0]
     assert r.question_type == "choice"
     assert r.video_id == "v1"
-    assert r.chapter_id == "ch1"
-    assert r.chapter_title == "循环结构"
+    assert r.course_id == "c1"
+    assert r.course_title == "循环结构"
     assert r.is_correct is True
     assert r.score == 1.0
     assert r.answered_at == t
@@ -104,6 +109,7 @@ def test_answer_records_filters_by_student():
     s = _session()
     s.add_all(
         [
+            PracticeSession(practice_id="p1", student_id="s1", course_id="c1"),
             PracticeQuestion(question_id="q1", practice_id="p1", video_id="v1"),
             PracticeAnswer(
                 answer_id="a1", practice_id="p1", question_id="q1", student_id="s1"

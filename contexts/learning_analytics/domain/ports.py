@@ -7,8 +7,8 @@ from typing import Protocol
 class AnswerRecord:
     question_type: str | None = None
     video_id: str | None = None
-    chapter_id: str | None = None
-    chapter_title: str | None = None
+    course_id: str | None = None
+    course_title: str | None = None
     is_correct: bool | None = None
     score: float | None = None
     answered_at: datetime | None = None

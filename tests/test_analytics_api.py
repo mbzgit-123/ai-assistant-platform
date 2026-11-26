@@ -30,8 +30,8 @@ class _StubData:
     def answer_records(self, student_id):
         return [
             AnswerRecord(
-                chapter_id="ch1",
-                chapter_title="循环",
+                course_id="ch1",
+                course_title="循环",
                 is_correct=False,
                 answered_at=datetime(2026, 11, 1, 9, 0),
             ),
@@ -71,7 +71,8 @@ def test_analytics_student_endpoint_ok():
     assert data["profile"]["completedVideos"] == 3
     assert data["profile"]["totalVideos"] == 10
     assert data["profile"]["overallAccuracy"] == 0.0
-    assert data["trend"][0]["chapterId"] == "ch1"
+    assert data["trend"][0]["courseId"] == "ch1"
+    assert data["trend"][0]["courseTitle"] == "循环"
     assert data["trend"][0]["period"] == "2026-11-01"
-    assert data["weakPoints"][0]["chapterId"] == "ch1"
+    assert data["weakPoints"][0]["courseId"] == "ch1"
     assert data["weakPoints"][0]["reason"] == "归因"
