@@ -19,6 +19,7 @@ EXPECTED_TABLES = {
     "practice_session",
     "practice_question",
     "practice_answer",
+    "conversation_message",
 }
 
 

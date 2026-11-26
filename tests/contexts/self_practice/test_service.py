@@ -354,6 +354,23 @@ def test_get_practice_returns_review_shape():
     assert qs["scenario"]["answer"] == "方案"
 
 
+def test_get_practice_preserves_question_order():
+    svc = _service_with_grader(RecordingGrader())
+    result = svc.generate_practice("stu", "# 文档", [{"videoId": "v1"}])
+    pid = result["practiceId"]
+    # 生成顺序固定为 选择 -> 论述 -> 代码 -> 场景，提交也按此顺序
+    ordered_ids = [q["id"] for q in result["questions"]]
+    svc.grade_practice(pid, [
+        {"questionId": ordered_ids[0], "answer": [0]},
+        {"questionId": ordered_ids[1], "answer": "x"},
+        {"questionId": ordered_ids[2], "answer": ["1"]},
+        {"questionId": ordered_ids[3], "answer": "x"},
+    ])
+    detail = svc.get_practice(pid)
+    types = [q["type"] for q in detail["questions"]]
+    assert types == ["indefinite", "essay", "code", "scenario"]
+
+
 def test_grade_practice_reference_is_explanation_text():
     svc = _service_with_grader(RecordingGrader())
     result = svc.generate_practice("stu", "# 文档", [

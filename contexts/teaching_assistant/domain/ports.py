@@ -1,17 +1,22 @@
 from typing import Protocol
 
-from contexts.teaching_assistant.domain.chunks import Chunk, ScoredChunk
+from contexts.teaching_assistant.domain.chunks import RetrievedChunk
 
 
-class EmbeddingPort(Protocol):
-    def embed(self, text: str) -> list[float]: ...
+class RetrievalPort(Protocol):
+    def search(self, question: str, top_k: int) -> list[RetrievedChunk]: ...
 
 
-class VectorStorePort(Protocol):
-    def upsert(self, chunks: list[Chunk]) -> None: ...
+class ConversationRecordPort(Protocol):
+    def record_exchange(
+        self,
+        conversation_id: str,
+        user_id: str | None,
+        question: str,
+        reply: str,
+        sources: list[dict],
+    ) -> None: ...
 
-    def search(self, embedding: list[float], top_k: int) -> list[ScoredChunk]: ...
+    def list_conversations(self, user_id: str | None) -> list[dict]: ...
 
-
-class HandoffPort(Protocol):
-    def create_handoff(self, question: str, student_id: str | None) -> str: ...
+    def list_messages(self, conversation_id: str) -> list[dict]: ...

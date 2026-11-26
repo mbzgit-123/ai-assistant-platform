@@ -81,7 +81,7 @@ class PracticeRepository:
         student_id: str | None,
         answers: list[tuple[Question, dict, GradeResult]],
     ) -> None:
-        for question, answer_content, grade in answers:
+        for idx, (question, answer_content, grade) in enumerate(answers):
             self._session.add(
                 PracticeAnswer(
                     answer_id="a_" + uuid.uuid4().hex[:12],
@@ -92,6 +92,7 @@ class PracticeRepository:
                     is_correct=grade.is_correct,
                     score=grade.score,
                     feedback=grade.feedback,
+                    order_index=idx,
                 )
             )
         self._session.commit()
@@ -148,7 +149,11 @@ class PracticeRepository:
         session = self._session.get(PracticeSession, practice_id)
         if session is None:
             return None
-        stmt = select(PracticeAnswer).where(PracticeAnswer.practice_id == practice_id)
+        stmt = (
+            select(PracticeAnswer)
+            .where(PracticeAnswer.practice_id == practice_id)
+            .order_by(PracticeAnswer.order_index.asc())
+        )
         answers = self._session.scalars(stmt).all()
         results = []
         total = len(answers)

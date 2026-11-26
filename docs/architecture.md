@@ -73,7 +73,7 @@ ai-assistant-platform/
 | 上下文 | Agent | 定位 | 分层 | 对外 API |
 |--------|-------|------|------|---------|
 | `sales_assistant` | 营销 Agent | 智能客服 / 线索留资 | 4 层 | `/api/v1/sales/*` |
-| `teaching_assistant` | 助教 Agent | 答疑 RAG / 转人工 | 4 层 | `/api/v1/teaching/*` |
+| `teaching_assistant` | 助教 Agent | 答疑 RAG / 会话记录 | 4 层 | `/api/v1/teaching/*` |
 | `learning_analytics` | 学情分析 Agent | 画像 / 趋势 / 薄弱点 | 4 层 | `/api/v1/analytics/*` |
 | `self_practice` | 自主练习 Agent | **编排者**：练习闭环 | 4 层 | `/api/v1/practice/*` |
 | `exam_paper_generation` | 出题 Agent | 生产者：出题 | 2 层（无 interface/application） | 无 |

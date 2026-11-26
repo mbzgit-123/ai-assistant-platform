@@ -3,20 +3,21 @@ from unittest.mock import patch
 from contexts.teaching_assistant.interface import dependencies as deps
 
 
-def test_ensure_indexed_reads_chapters_once():
-    deps._indexed = False
+def test_get_retrieval_is_lazy_singleton():
+    deps._retrieval = None
     calls = []
 
-    class _FakeRepo:
-        def __init__(self, session):
-            self._session = session
+    class _FakeKB:
+        def __init__(self, uri, embedding, retrieval_mode, top_k):
+            calls.append((uri, embedding, retrieval_mode, top_k))
 
-        def list_chapters(self):
-            calls.append(1)
-            return []
+    with patch.object(deps, "MilvusKnowledgeBase", _FakeKB), patch.object(
+        deps, "create_embeddings", lambda model: "emb"
+    ):
+        a = deps._get_retrieval()
+        b = deps._get_retrieval()
 
-    with patch.object(deps, "TeachingRepository", _FakeRepo):
-        deps._ensure_indexed(object())
-        deps._ensure_indexed(object())
-
+    assert a is b
     assert len(calls) == 1
+    assert calls[0][1] == "emb"  # 嵌入模型传入检索器
+    assert calls[0][3] == 5      # 默认 top_k

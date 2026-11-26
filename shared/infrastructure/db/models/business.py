@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Index, JSON, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Index, Integer, JSON, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infrastructure.db.base import Base, utcnow
@@ -61,3 +61,25 @@ class PracticeAnswer(Base):
     score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     answered_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow)
+    order_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class ConversationMessage(Base):
+    __tablename__ = "conversation_message"
+    __table_args__ = (
+        Index("ix_conversation_message_conv", "conversation_id"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
+    message_id: Mapped[str] = mapped_column(String(64), unique=True)
+    conversation_id: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    role: Mapped[str] = mapped_column(String(16))
+    message: Mapped[str] = mapped_column(Text)
+    sources: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    source: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow)

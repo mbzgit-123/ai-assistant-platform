@@ -1,4 +1,5 @@
 from shared.infrastructure.db.models.business import (
+    ConversationMessage,
     Lead,
     PracticeAnswer,
     PracticeQuestion,
@@ -26,4 +27,5 @@ __all__ = [
     "PracticeSession",
     "PracticeQuestion",
     "PracticeAnswer",
+    "ConversationMessage",
 ]

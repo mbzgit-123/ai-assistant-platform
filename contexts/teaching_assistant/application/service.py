@@ -1,20 +1,23 @@
-from contexts.teaching_assistant.domain.chunks import (
-    HANDOFF_KEYWORDS,
-    SCORE_THRESHOLD,
-    Chunk,
-)
+import uuid
+from collections.abc import Iterator
+
+from contexts.teaching_assistant.domain.chunks import SCORE_THRESHOLD, RetrievedChunk
 from contexts.teaching_assistant.domain.ports import (
-    EmbeddingPort,
-    HandoffPort,
-    VectorStorePort,
+    ConversationRecordPort,
+    RetrievalPort,
 )
 from shared.infrastructure.llm.port import LLMPort
+from shared.infrastructure.observability.logging import get_logger
 
-HANDOFF_REPLY = "已为你转接授课老师，请稍候。"
+logger = get_logger(__name__)
+
+UNABLE_TO_ANSWER_REPLY = "暂未找到相关课件内容，无法回答，请换个问法或补充更多信息。"
 TOP_K = 5
 ANSWER_SYSTEM_PROMPT = (
     "你是课程助教。请基于给定的课件分块回答学员问题，讲解知识点并尽量溯源。"
     "若课件分块不足以回答，请如实说明。"
+    "回答请用简体中文，分段清晰；可用 **加粗** 强调重点、用 - 列表分点。"
+    "不要使用 Markdown 标题（#）、引用（>）或代码块等符号。"
 )
 
 
@@ -22,48 +25,100 @@ class TeachingAssistantService:
     def __init__(
         self,
         llm: LLMPort,
-        embedding: EmbeddingPort,
-        vector_store: VectorStorePort,
-        handoff: HandoffPort,
+        retrieval: RetrievalPort,
+        conversation_record: ConversationRecordPort,
     ):
         self._llm = llm
-        self._embedding = embedding
-        self._vector_store = vector_store
-        self._handoff = handoff
+        self._retrieval = retrieval
+        self._conversation_record = conversation_record
 
-    def ask(self, question: str, student_id: str | None) -> dict:
-        if not question or not question.strip():
-            return self._handoff_reply(question, student_id)
-        if any(kw in question for kw in HANDOFF_KEYWORDS):
-            return self._handoff_reply(question, student_id)
+    def ask(self, question: str, student_id: str | None, conversation_id: str | None = None) -> dict:
+        conversation_id = conversation_id or ("conv_" + uuid.uuid4().hex[:12])
 
-        emb = self._embedding.embed(question)
-        scored = self._vector_store.search(emb, TOP_K)
-        max_score = max((s.score for s in scored), default=-1.0)
-        if max_score < SCORE_THRESHOLD:
-            return self._handoff_reply(question, student_id)
+        hits = self._retrieval.search(question, TOP_K)
+        selected = [h for h in hits if h.score >= SCORE_THRESHOLD]
+        if not selected:
+            reply = UNABLE_TO_ANSWER_REPLY
+            sources: list[dict] = []
+        else:
+            reply = self._llm.chat(self._build_messages(question, selected)).content
+            sources = [self._to_source(h) for h in selected]
 
-        hits = [s.chunk for s in scored if s.score >= SCORE_THRESHOLD]
-        reply = self._llm.chat(self._build_messages(question, hits)).content
-        sources = [
-            {
-                "chapterId": c.chapter_id,
-                "headingPath": c.heading_path,
-                "sourceRef": c.source_ref,
-            }
-            for c in hits
-        ]
-        return {"reply": reply, "sources": sources, "handoff": False}
+        self._record(conversation_id, student_id, question, reply, sources)
+        return {"reply": reply, "sources": sources, "conversationId": conversation_id}
 
-    def _handoff_reply(self, question: str, student_id: str | None) -> dict:
-        self._handoff.create_handoff(question, student_id)
-        return {"reply": HANDOFF_REPLY, "sources": [], "handoff": True}
+    def ask_stream(
+        self,
+        question: str,
+        student_id: str | None,
+        conversation_id: str | None = None,
+    ) -> Iterator[dict]:
+        """以 SSE 事件流（meta / delta / done / error）返回答疑；完成后落库。"""
+        conversation_id = conversation_id or ("conv_" + uuid.uuid4().hex[:12])
+
+        hits = self._retrieval.search(question, TOP_K)
+        selected = [h for h in hits if h.score >= SCORE_THRESHOLD]
+
+        if not selected:
+            reply = UNABLE_TO_ANSWER_REPLY
+            sources: list[dict] = []
+            yield {"type": "meta", "conversationId": conversation_id, "sources": sources}
+            yield {"type": "delta", "content": reply}
+        else:
+            sources = [self._to_source(h) for h in selected]
+            yield {"type": "meta", "conversationId": conversation_id, "sources": sources}
+            parts: list[str] = []
+            try:
+                for chunk in self._llm.stream(self._build_messages(question, selected)):
+                    parts.append(chunk)
+                    yield {"type": "delta", "content": chunk}
+            except Exception:
+                yield {"type": "error", "message": "回复生成失败，请稍后重试"}
+                return
+            reply = "".join(parts)
+
+        self._record(conversation_id, student_id, question, reply, sources)
+        yield {"type": "done"}
+
+    def list_conversations(self, user_id: str | None) -> list[dict]:
+        return self._conversation_record.list_conversations(user_id)
+
+    def list_messages(self, conversation_id: str) -> list[dict]:
+        return self._conversation_record.list_messages(conversation_id)
+
+    def _record(
+        self,
+        conversation_id: str,
+        user_id: str | None,
+        question: str,
+        reply: str,
+        sources: list[dict],
+    ) -> None:
+        try:
+            self._conversation_record.record_exchange(
+                conversation_id=conversation_id,
+                user_id=user_id,
+                question=question,
+                reply=reply,
+                sources=sources,
+            )
+        except Exception:
+            logger.warning("conversation_record_failed", conversation_id=conversation_id)
 
     @staticmethod
-    def _build_messages(question: str, hits: list[Chunk]) -> list[dict[str, str]]:
-        context = "\n\n".join(
-            f"[{c.heading_path} / {c.source_ref}]\n{c.text}" for c in hits
-        )
+    def _to_source(hit: RetrievedChunk) -> dict:
+        heading_path = hit.heading_path
+        if hit.document_name and hit.document_name not in heading_path:
+            heading_path = f"{hit.document_name} > {heading_path}"
+        return {
+            "chapterId": hit.chapter,
+            "headingPath": heading_path,
+            "sourceRef": hit.heading_path.rsplit(" > ", 1)[-1],
+        }
+
+    @staticmethod
+    def _build_messages(question: str, hits: list[RetrievedChunk]) -> list[dict[str, str]]:
+        context = "\n\n".join(f"[{h.heading_path}]\n{h.text}" for h in hits)
         return [
             {"role": "system", "content": ANSWER_SYSTEM_PROMPT},
             {"role": "user", "content": f"课件分块：\n{context}\n\n学员问题：{question}"},
