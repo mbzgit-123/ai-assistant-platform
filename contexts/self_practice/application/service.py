@@ -3,6 +3,7 @@ import re
 import uuid
 
 from contexts.self_practice.domain.admission import check_admission
+from contexts.self_practice.domain.fusion import fuse_summaries
 from contexts.self_practice.domain.merge import merge_counts
 from contexts.self_practice.domain.ports import (
     GradeResult,
@@ -25,6 +26,10 @@ _TYPE_TO_FRONTEND = {
 }
 
 _OPTION_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"]
+
+# 每日出题次数上限（按中国时区自然日，区分练习 / 章节考试）
+PRACTICE_DAILY_LIMIT = 2
+CHAPTER_EXAM_DAILY_LIMIT = 1
 
 
 class PracticeService:
@@ -49,6 +54,7 @@ class PracticeService:
         confirm: bool = False,
         regenerate: bool = False,
     ) -> dict:
+        self._assert_daily_quota(student_id, "practice", PRACTICE_DAILY_LIMIT, "练习")
         durations = self._repo.get_video_durations(video_ids)
         admission = check_admission(sum(durations.values()))
         if admission.level == "block":
@@ -103,6 +109,7 @@ class PracticeService:
         courseDocument 携带完整内容，videos 仅提供 videoId 用于落库归属。
         courseId/courseTitle 用于把整套题归属到课程，支撑学情分析按课程聚合。
         """
+        self._assert_daily_quota(student_id, "practice", PRACTICE_DAILY_LIMIT, "练习")
         video_ids = [v.get("videoId", "") for v in videos if v.get("videoId")]
         questions = self._qgen.generate_from_document(course_document)
         practice_id = "pr_" + uuid.uuid4().hex[:12]
@@ -112,6 +119,41 @@ class PracticeService:
             video_ids,
             course_id=course_id or None,
             course_title=course_title or None,
+        )
+        self._repo.save_questions(practice_id, questions)
+        return {
+            "practiceId": practice_id,
+            "questions": [self._to_frontend_question(q) for q in questions],
+        }
+
+    def start_chapter_exam(
+        self,
+        student_id: str,
+        chapter_id: str,
+        videos: list[dict],
+        course_id: str | None = None,
+        course_title: str | None = None,
+    ) -> dict:
+        """章节考试：融合各视频 summary -> 固定 20/5/1/1 出题 -> 复用落库。
+
+        videos 每个元素含 videoId/title/summary；videoId 用于落库归属，
+        title/summary 融合成出题上下文。courseId/courseTitle 用于把整套题归属到
+        课程，支撑学情分析按课程聚合。判分与结果回顾复用 submit/grade/get/history。
+        """
+        self._assert_daily_quota(student_id, "chapter_exam", CHAPTER_EXAM_DAILY_LIMIT, "章节考试")
+        fused = fuse_summaries([(v.get("title", ""), v.get("summary", "")) for v in videos])
+        if not fused:
+            raise BadRequestError("该章节暂无可考内容")
+        questions = self._qgen.generate_chapter_exam(fused)
+        practice_id = "pr_" + uuid.uuid4().hex[:12]
+        video_ids = [v.get("videoId", "") for v in videos if v.get("videoId")]
+        self._repo.save_session(
+            practice_id,
+            student_id,
+            video_ids,
+            course_id=course_id or None,
+            course_title=course_title or None,
+            session_type="chapter_exam",
         )
         self._repo.save_questions(practice_id, questions)
         return {
@@ -226,8 +268,19 @@ class PracticeService:
             "questions": questions,
         }
 
-    def get_history(self, student_id: str) -> dict:
-        return {"sessions": self._repo.list_sessions(student_id)}
+    def get_history(self, student_id: str, session_type: str | None = None) -> dict:
+        return {"sessions": self._repo.list_sessions(student_id, session_type)}
+
+    def _assert_daily_quota(
+        self,
+        student_id: str,
+        session_type: str,
+        limit: int,
+        label: str,
+    ) -> None:
+        used = self._repo.count_today_sessions(student_id, session_type)
+        if used >= limit:
+            raise BadRequestError(f"今日{label}次数已达上限（{limit} 次），请明天再来")
 
     def _to_public_question(self, q: Question) -> dict:
         return {

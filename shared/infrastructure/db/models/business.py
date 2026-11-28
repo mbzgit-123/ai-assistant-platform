@@ -32,6 +32,7 @@ class PracticeSession(Base):
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     total_score: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    session_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class PracticeQuestion(Base):

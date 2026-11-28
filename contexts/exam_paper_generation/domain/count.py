@@ -31,3 +31,13 @@ def plan_question_counts(content_len: int, has_code: bool) -> dict[str, int]:
         "code_fill": 1 if has_code else 0,
         "scenario": 1,
     }
+
+
+def plan_chapter_exam_counts() -> dict[str, int]:
+    """章节考试固定题型规格：20 不定项 + 5 论述 + 1 代码填空 + 1 场景。"""
+    return {
+        "multi_choice": 20,
+        "short_answer": 5,
+        "code_fill": 1,
+        "scenario": 1,
+    }

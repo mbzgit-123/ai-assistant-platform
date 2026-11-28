@@ -16,6 +16,7 @@ from contexts.self_practice.application.service import PracticeService
 class FakeQGen:
     def __init__(self):
         self.calls = 0
+        self.chapter_exam_doc: str | None = None
 
     def plan_counts(self, video_ids):
         return {vid: 10 for vid in video_ids}
@@ -44,6 +45,11 @@ class FakeQGen:
                      {"scenario": "场景描述", "task": "方案任务"},
                      {"points": ["p"]}, "exp"),
         ]
+
+    def generate_chapter_exam(self, course_document):
+        self.calls += 1
+        self.chapter_exam_doc = course_document
+        return self.generate_from_document(course_document)
 
 
 class FakeGrader:
@@ -387,3 +393,68 @@ def test_grade_practice_reference_is_explanation_text():
     # FakeQGen 所有题 explanation 均为 "exp"，reference 直接取题干解析文本
     assert refs[by_type["indefinite"]["id"]] == "exp"
     assert refs[by_type["code"]["id"]] == "exp"
+
+
+def test_start_chapter_exam_fuses_summaries_and_persists():
+    qgen = FakeQGen()
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    s = Session(engine)
+    svc = PracticeService(qgen, FakeGrader(), PracticeRepository(s))
+    result = svc.start_chapter_exam("stu", "c1", [
+        {"videoId": "v1", "title": "视频一", "summary": "  要点A  "},
+        {"videoId": "v2", "title": "视频二", "summary": ""},
+        {"videoId": "v3", "title": "视频三", "summary": "要点B"},
+    ])
+    # 融合：跳过空摘要，标题作小节头，段落空行分隔
+    assert qgen.chapter_exam_doc == "## 视频一\n要点A\n\n## 视频三\n要点B"
+    assert result["practiceId"].startswith("pr_")
+    assert {q["type"] for q in result["questions"]} == {"indefinite", "essay", "code", "scenario"}
+    history = svc.get_history("stu")
+    assert len(history["sessions"]) == 1
+    assert history["sessions"][0]["practiceId"] == result["practiceId"]
+
+
+def test_start_chapter_exam_empty_summaries_raises():
+    svc = _service()
+    with pytest.raises(BadRequestError):
+        svc.start_chapter_exam("stu", "c1", [{"videoId": "v1", "title": "t", "summary": ""}])
+
+
+def test_daily_practice_limit():
+    svc = _service(videos=[Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600)])
+    svc.start_practice("stu", "c1", ["v1"])
+    svc.start_practice("stu", "c1", ["v1"])  # 第 2 次（复用旧题）仍放行
+    with pytest.raises(BadRequestError):
+        svc.start_practice("stu", "c1", ["v1"])  # 第 3 次超限
+
+
+def test_daily_chapter_exam_limit():
+    svc = _service()
+    svc.start_chapter_exam("stu", "c1", [{"videoId": "v1", "title": "t", "summary": "要点"}])
+    with pytest.raises(BadRequestError):
+        svc.start_chapter_exam("stu", "c1", [{"videoId": "v1", "title": "t", "summary": "要点"}])
+
+
+def test_quota_separate_practice_and_exam():
+    svc = _service(videos=[Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600)])
+    svc.start_practice("stu", "c1", ["v1"])
+    svc.start_practice("stu", "c1", ["v1"])  # 练习配额用满
+    # 章节考试配额独立，不受练习次数影响
+    result = svc.start_chapter_exam("stu", "c1", [{"videoId": "v1", "title": "t", "summary": "要点"}])
+    assert result["practiceId"].startswith("pr_")
+
+
+def test_history_filter_by_type():
+    svc = _service(videos=[Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600)])
+    practice_pid = svc.start_practice("stu", "c1", ["v1"])["practiceId"]
+    exam_pid = svc.start_chapter_exam("stu", "c1", [{"videoId": "v1", "title": "t", "summary": "要点"}])["practiceId"]
+
+    practice_only = svc.get_history("stu", "practice")["sessions"]
+    assert [s["practiceId"] for s in practice_only] == [practice_pid]
+
+    exam_only = svc.get_history("stu", "chapter_exam")["sessions"]
+    assert [s["practiceId"] for s in exam_only] == [exam_pid]
+
+    all_sessions = svc.get_history("stu")["sessions"]
+    assert {s["practiceId"] for s in all_sessions} == {practice_pid, exam_pid}

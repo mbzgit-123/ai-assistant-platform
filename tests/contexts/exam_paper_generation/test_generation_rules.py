@@ -2,8 +2,14 @@ from contexts.exam_paper_generation.domain.anchor import (
     slice_content_md,
     split_long_interval,
     has_code_block,
+    extract_code_blocks,
+    blank_code,
 )
-from contexts.exam_paper_generation.domain.count import count_for_duration, plan_question_counts
+from contexts.exam_paper_generation.domain.count import (
+    count_for_duration,
+    plan_question_counts,
+    plan_chapter_exam_counts,
+)
 from contexts.exam_paper_generation.domain.allocation import allocate_types
 
 
@@ -36,6 +42,43 @@ def test_has_code_block_requires_more_than_10_lines():
     assert has_code_block("说明文字\n" + long_block) is True
     assert has_code_block("说明文字\n```python\nprint(1)\n```") is False
     assert has_code_block("纯文字无代码") is False
+
+
+def test_extract_code_blocks_returns_inner_code():
+    doc = "说明\n```python\nimport torch\nx = 1\n```\n\n```java\nint y = 2;\n```"
+    assert extract_code_blocks(doc) == ["import torch\nx = 1", "int y = 2;"]
+
+
+def test_extract_code_blocks_empty_when_no_code():
+    assert extract_code_blocks("纯文字无代码") == []
+
+
+def test_blank_code_extracts_original_tokens():
+    # 优先挖函数调用名/方法名（核心），而不是赋值左侧的变量名
+    code = "loss = criterion(output, target)\noptimizer.zero_grad()\nloss.backward()"
+    blanked, answers = blank_code(code)
+    assert answers == ["criterion", "zero_grad", "backward"]
+    assert "loss = ___(1)___(output, target)" in blanked
+    assert "optimizer.___(2)___()" in blanked
+    assert "loss.___(3)___()" in blanked
+
+
+def test_blank_code_skips_keywords_and_common_vars():
+    code = "import torch\ndef forward(x):\n    return x * 2"
+    blanked, answers = blank_code(code)
+    assert "def" not in answers
+    assert "import" not in answers
+    assert "return" not in answers
+    assert "x" not in answers  # 占位变量不作为挖空目标
+    assert answers == ["torch", "forward"]
+
+
+def test_blank_code_respects_num_blanks():
+    code = "\n".join(f"var_{i} = {i}" for i in range(10))
+    blanked, answers = blank_code(code, num_blanks=3)
+    assert answers == ["var_0", "var_1", "var_2"]
+    assert "var_3" in blanked  # 未挖空部分原样保留
+    assert "___(4)___" not in blanked
 
 
 def test_count_for_duration_buckets():
@@ -96,3 +139,12 @@ def test_plan_question_counts_boundaries_are_medium():
 def test_plan_question_counts_with_code():
     assert plan_question_counts(2000, True)["code_fill"] == 1
     assert plan_question_counts(2000, False)["code_fill"] == 0
+
+
+def test_plan_chapter_exam_counts_fixed():
+    assert plan_chapter_exam_counts() == {
+        "multi_choice": 20,
+        "short_answer": 5,
+        "code_fill": 1,
+        "scenario": 1,
+    }

@@ -45,3 +45,21 @@ class GradeAnswerItem(BaseModel):
 class GradePracticeRequest(BaseModel):
     practiceId: str
     answers: list[GradeAnswerItem]
+
+
+class ChapterExamVideoItem(BaseModel):
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
+    videoId: str = ""
+    title: str = ""
+    summary: str = ""
+
+
+class StartChapterExamRequest(BaseModel):
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
+    studentId: str
+    chapterId: str
+    videos: list[ChapterExamVideoItem]
+    courseId: str = ""
+    courseTitle: str = ""

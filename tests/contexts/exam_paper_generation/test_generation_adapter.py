@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -107,9 +109,9 @@ def test_generate_by_video_fallback_range_used_on_anchor_failure():
     assert len(qs) == 3
 
 
-def test_generate_by_video_code_fill_prompt_instructs_blanking():
+def test_generate_by_video_code_fill_extracts_from_source():
     s = _session()
-    code_lines = "\n".join(f"line_{i} = {i}" for i in range(12))  # 12 行 > 10 行
+    code_lines = "\n".join(f"value_{i} = {i}" for i in range(12))  # 12 行 > 10 行
     content = f"START 示例代码\n```python\n{code_lines}\n```\nEND"
     s.add_all([
         Video(video_id="v1", chapter_id="c1", title="t", duration_seconds=3600),
@@ -117,13 +119,13 @@ def test_generate_by_video_code_fill_prompt_instructs_blanking():
         Chapter(chapter_id="c1", title="ch", content_md=content),
     ])
     s.commit()
-    spy = _SpyLLM("[]")
-    a = QuestionGenerationAdapter(s, spy)
-    a.generate_by_video("v1", 10)  # has_code=True 才会分配 code_fill
-    joined = " ".join(str(m) for m in spy.messages)
-    assert "___(1)___" in joined  # 带编号挖空占位符
-    assert "挖空" in joined
-    assert "按编号顺序" in joined
+    a = QuestionGenerationAdapter(s, _SpyLLM("[]"))
+    qs = a.generate_by_video("v1", 10)
+    code_fills = [q for q in qs if q.question_type == "code_fill"]
+    assert len(code_fills) == 1
+    q = code_fills[0]
+    assert q.content["code"].startswith("___(1)___ = 0\n___(2)___ = 1\n___(3)___ = 2")
+    assert q.reference_answer["answers"] == ["value_0", "value_1", "value_2"]
 
 
 def test_generate_by_video_multi_choice_prompt_instructs_variable_count():
@@ -195,25 +197,24 @@ def test_generate_from_document_empty_doc_returns_empty():
     assert a.generate_from_document("   \n  ") == []
 
 
-def test_generate_from_document_code_block_triggers_code_fill():
+def test_generate_from_document_code_block_generates_code_fill():
     s = _session()
-    code_lines = "\n".join(f"line_{i} = {i}" for i in range(15))  # 15 行 >= 15
+    code_lines = "\n".join(f"value_{i} = {i}" for i in range(15))  # 15 行 >= 15
     doc = f"START\n```python\n{code_lines}\n```\nEND"
-    spy = _SpyLLM("[]")
-    a = QuestionGenerationAdapter(s, spy)
-    a.generate_from_document(doc)
-    joined = " ".join(str(m) for m in spy.messages)
-    assert "挖空" in joined  # 分配了 code_fill 题型，prompt 含挖空指令
+    a = QuestionGenerationAdapter(s, _SpyLLM("[]"))
+    qs = a.generate_from_document(doc)
+    code_fills = [q for q in qs if q.question_type == "code_fill"]
+    assert len(code_fills) == 1
+    assert code_fills[0].video_id == ""
+    assert code_fills[0].reference_answer["answers"] == ["value_0", "value_1", "value_2"]
 
 
 def test_generate_from_document_short_code_block_skips_code_fill():
     s = _session()
     doc = "START\n```python\nprint(1)\n```\nEND"
-    spy = _SpyLLM("[]")
-    a = QuestionGenerationAdapter(s, spy)
-    a.generate_from_document(doc)
-    joined = " ".join(str(m) for m in spy.messages)
-    assert "挖空" not in joined  # 代码块 <15 行，不出代码题
+    a = QuestionGenerationAdapter(s, _SpyLLM("[]"))
+    qs = a.generate_from_document(doc)
+    assert not any(q.question_type == "code_fill" for q in qs)  # 代码块 <15 行，不出代码题
 
 
 def test_extract_json_list_strips_code_fence():
@@ -227,3 +228,63 @@ def test_extract_json_list_wraps_single_object():
 
 def test_extract_json_list_returns_none_on_garbage():
     assert _extract_json_list("不是 json") is None
+
+
+def _multi_items(n):
+    return json.dumps([
+        {"content": {"stem": f"q{i}", "options": ["A", "B", "C", "D"]},
+         "reference_answer": {"correct": ["A"]}, "explanation": "x"}
+        for i in range(n)
+    ], ensure_ascii=False)
+
+
+def _short_items(n):
+    return json.dumps([
+        {"content": {"stem": f"q{i}"}, "reference_answer": {"points": ["p"]}, "explanation": "x"}
+        for i in range(n)
+    ], ensure_ascii=False)
+
+
+def _scenario_items(n):
+    return json.dumps([
+        {"content": {"scenario": "s", "task": "t"},
+         "reference_answer": {"points": ["p"]}, "explanation": "x"}
+        for i in range(n)
+    ], ensure_ascii=False)
+
+
+def test_generate_chapter_exam_fixed_composition_with_code():
+    s = _session()
+    code_lines = "\n".join(f"value_{i} = {i}" for i in range(3))
+    doc = f"## 视频一\n要点\n```python\n{code_lines}\n```"
+    llm = FakeLLMAdapter(responses=[
+        _multi_items(20), _short_items(5), _scenario_items(1),
+    ])
+    a = QuestionGenerationAdapter(s, llm)
+    qs = a.generate_chapter_exam(doc)
+    by_type: dict[str, int] = {}
+    for q in qs:
+        by_type[q.question_type] = by_type.get(q.question_type, 0) + 1
+    assert by_type == {"multi_choice": 20, "short_answer": 5, "code_fill": 1, "scenario": 1}
+    assert all(q.video_id == "" for q in qs)
+
+
+def test_generate_chapter_exam_no_code_skips_code_fill():
+    s = _session()
+    doc = "## 视频一\n纯文字要点"
+    llm = FakeLLMAdapter(responses=[
+        _multi_items(20), _short_items(5), _scenario_items(1),
+    ])
+    a = QuestionGenerationAdapter(s, llm)
+    qs = a.generate_chapter_exam(doc)
+    types = [q.question_type for q in qs]
+    assert types.count("multi_choice") == 20
+    assert types.count("short_answer") == 5
+    assert types.count("scenario") == 1
+    assert types.count("code_fill") == 0
+
+
+def test_generate_chapter_exam_empty_doc_returns_empty():
+    s = _session()
+    a = QuestionGenerationAdapter(s, FakeLLMAdapter(responses=[]))
+    assert a.generate_chapter_exam("   \n  ") == []

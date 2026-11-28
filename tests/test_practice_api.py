@@ -110,3 +110,43 @@ def test_start_and_submit_roundtrip():
     assert sub.status_code == 200
     body = sub.json()["data"]
     assert body["summary"]["total"] == 10
+
+
+def test_chapter_exam_endpoint():
+    multi_choice_items = [
+        {"content": {"stem": f"选择题{i}", "options": ["A", "B", "C", "D"]},
+         "reference_answer": {"correct": ["A"]}, "explanation": "解析"}
+        for i in range(20)
+    ]
+    short_items = [
+        {"content": {"stem": f"简答题{i}"}, "reference_answer": {"points": ["要点"]}, "explanation": "解析"}
+        for i in range(5)
+    ]
+    scenario_items = [
+        {"content": {"scenario": "场景", "task": "任务"},
+         "reference_answer": {"points": ["要点"]}, "explanation": "解析"}
+        for _ in range(1)
+    ]
+    gen_responses = [
+        json.dumps(multi_choice_items, ensure_ascii=False),
+        json.dumps(short_items, ensure_ascii=False),
+        json.dumps(scenario_items, ensure_ascii=False),
+    ]
+
+    c = _client(gen_responses=gen_responses)
+    r = c.post("/api/v1/practice/chapter-exam", json={
+        "studentId": "stu",
+        "chapterId": "c1",
+        "videos": [
+            {"videoId": "v1", "title": "视频一", "summary": "要点A"},
+            {"videoId": "v2", "title": "视频二", "summary": "要点B"},
+        ],
+    })
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert data["practiceId"].startswith("pr_")
+    types = [q["type"] for q in data["questions"]]
+    assert types.count("indefinite") == 20
+    assert types.count("essay") == 5
+    assert types.count("scenario") == 1
+    assert types.count("code") == 0  # 无代码块，代码填空静默跳过

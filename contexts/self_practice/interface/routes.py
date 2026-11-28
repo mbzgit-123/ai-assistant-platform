@@ -5,6 +5,7 @@ from contexts.self_practice.interface.dependencies import get_practice_service
 from contexts.self_practice.interface.schemas import (
     GeneratePracticeRequest,
     GradePracticeRequest,
+    StartChapterExamRequest,
     StartPracticeRequest,
     SubmitPracticeRequest,
 )
@@ -49,6 +50,22 @@ async def generate_practice(
     return ok(data=result, trace_id=get_trace_id())
 
 
+@router.post("/chapter-exam")
+async def start_chapter_exam(
+    body: StartChapterExamRequest,
+    service: PracticeService = Depends(get_practice_service),
+):
+    videos = [v.model_dump() for v in body.videos]
+    result = service.start_chapter_exam(
+        body.studentId,
+        body.chapterId,
+        videos,
+        course_id=body.courseId,
+        course_title=body.courseTitle,
+    )
+    return ok(data=result, trace_id=get_trace_id())
+
+
 @router.post("/submit")
 async def submit_practice(
     body: SubmitPracticeRequest,
@@ -72,9 +89,10 @@ async def grade_practice(
 @router.get("/history")
 async def practice_history(
     studentId: str,
+    sessionType: str | None = None,
     service: PracticeService = Depends(get_practice_service),
 ):
-    result = service.get_history(studentId)
+    result = service.get_history(studentId, sessionType)
     return ok(data=result, trace_id=get_trace_id())
 
 

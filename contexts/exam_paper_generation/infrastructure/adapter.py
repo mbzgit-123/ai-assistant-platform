@@ -5,12 +5,18 @@ from sqlalchemy.orm import Session
 
 from contexts.exam_paper_generation.domain.allocation import allocate_types
 from contexts.exam_paper_generation.domain.anchor import (
+    blank_code,
+    extract_code_blocks,
     has_code_block,
     slice_content_md,
     split_long_interval,
 )
 from contexts.exam_paper_generation.domain.clean import clean_markdown
-from contexts.exam_paper_generation.domain.count import count_for_duration, plan_question_counts
+from contexts.exam_paper_generation.domain.count import (
+    count_for_duration,
+    plan_chapter_exam_counts,
+    plan_question_counts,
+)
 from contexts.self_practice.domain.ports import Question
 from shared.infrastructure.db.models.sync_cache import Chapter, Video, VideoAnnotation
 from shared.infrastructure.llm.port import LLMPort
@@ -22,15 +28,9 @@ _SCHEMAS = {
     "multi_choice": '{"content": {"stem": str, "options": [str, str, str, str]}, "reference_answer": {"correct": [str]}, "explanation": str}',
     "short_answer": '{"content": {"stem": str}, "reference_answer": {"points": [str]}, "explanation": str}',
     "scenario": '{"content": {"scenario": str, "task": str}, "reference_answer": {"points": [str]}, "explanation": str}',
-    "code_fill": '{"content": {"stem": str, "code": str}, "reference_answer": {"answers": [str]}, "explanation": str}',
 }
 
-_CODE_FILL_INSTRUCTION = (
-    "代码填空题要求：从代码块中挑选核心部分（变量名、关键字、关键表达式等）挖空，"
-    "不要整段覆盖；挖空处用 ___(1)___、___(2)___ 这种带编号的占位符表示，"
-    "content.code 为挖空后的完整代码，"
-    "reference_answer.answers 按编号顺序列出被挖空的原始内容。"
-)
+_CODE_FILL_STEM = "请补全以下代码中被挖空的部分。"
 
 _MULTI_CHOICE_INSTRUCTION = (
     "不定项选择题要求：正确选项数量不固定（1 个或多个），不要全部只设 1 个正确项；"
@@ -96,7 +96,10 @@ class QuestionGenerationAdapter:
         for qtype, n in types.items():
             if n <= 0:
                 continue
-            questions.extend(self._generate_type(video_id, qtype, n, text))
+            if qtype == "code_fill":
+                questions.extend(self._generate_code_fill(video_id, n, text))
+            else:
+                questions.extend(self._generate_type(video_id, qtype, n, text))
         return questions
 
     def generate_from_document(self, course_document: str) -> list[Question]:
@@ -117,7 +120,53 @@ class QuestionGenerationAdapter:
         for qtype, n in counts.items():
             if n <= 0:
                 continue
-            questions.extend(self._generate_type("", qtype, n, text))
+            if qtype == "code_fill":
+                questions.extend(self._generate_code_fill("", n, text))
+            else:
+                questions.extend(self._generate_type("", qtype, n, text))
+        return questions
+
+    def generate_chapter_exam(self, course_document: str) -> list[Question]:
+        """章节考试出题：固定 20 不定项 + 5 论述 + 1 代码填空 + 1 场景。
+
+        流程同 generate_from_document，但题量固定；代码填空从融合文本的代码块确定性挖空
+        （无代码块时静默跳过）。合并出题 video_id 置空（不属于单一视频）。
+        """
+        full_text = clean_markdown(course_document)
+        if not full_text:
+            return []
+        counts = plan_chapter_exam_counts()
+        text = split_long_interval(full_text)
+
+        questions: list[Question] = []
+        for qtype, n in counts.items():
+            if n <= 0:
+                continue
+            if qtype == "code_fill":
+                questions.extend(self._generate_code_fill("", n, text))
+            else:
+                questions.extend(self._generate_type("", qtype, n, text))
+        return questions
+
+    def _generate_code_fill(self, video_id: str, n: int, text: str) -> list[Question]:
+        """确定性出代码填空题：从课程文档原始代码块中挖空，答案取自原代码。"""
+        questions: list[Question] = []
+        for block in extract_code_blocks(text):
+            if len(questions) >= n:
+                break
+            code, answers = blank_code(block)
+            if not answers:
+                continue
+            questions.append(
+                Question(
+                    question_id="q_" + uuid.uuid4().hex[:12],
+                    video_id=video_id,
+                    question_type="code_fill",
+                    content={"stem": _CODE_FILL_STEM, "code": code},
+                    reference_answer={"answers": answers},
+                    explanation="",
+                )
+            )
         return questions
 
     def _generate_type(self, video_id: str, qtype: str, n: int, text: str) -> list[Question]:
@@ -188,9 +237,7 @@ class QuestionGenerationAdapter:
             f"课程内容可能存在 OCR 或转写错别字，请按正确语义理解并纠正错字，"
             f"不要将错字照搬进题干、选项或参考答案。"
         )
-        if qtype == "code_fill":
-            instruction += f"\n{_CODE_FILL_INSTRUCTION}"
-        elif qtype == "multi_choice":
+        if qtype == "multi_choice":
             instruction += f"\n{_MULTI_CHOICE_INSTRUCTION}"
         return [
             {"role": "system", "content": "你是出题 Agent，输出 JSON 数组。"},

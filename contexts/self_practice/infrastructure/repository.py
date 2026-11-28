@@ -1,10 +1,10 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from contexts.self_practice.domain.ports import GradeResult, Question
-from shared.infrastructure.db.base import utcnow
+from shared.infrastructure.db.base import china_today_start_utc, utcnow
 from shared.infrastructure.db.models.business import (
     PracticeAnswer,
     PracticeQuestion,
@@ -55,6 +55,7 @@ class PracticeRepository:
         video_ids: list[str],
         course_id: str | None = None,
         course_title: str | None = None,
+        session_type: str = "practice",
     ) -> None:
         self._session.add(
             PracticeSession(
@@ -63,10 +64,23 @@ class PracticeRepository:
                 course_id=course_id,
                 course_title=course_title,
                 video_ids=video_ids,
+                session_type=session_type,
                 status="in_progress",
             )
         )
         self._session.commit()
+
+    def count_today_sessions(self, student_id: str, session_type: str) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(PracticeSession)
+            .where(
+                PracticeSession.student_id == student_id,
+                PracticeSession.session_type == session_type,
+                PracticeSession.started_at >= china_today_start_utc(),
+            )
+        )
+        return self._session.scalar(stmt) or 0
 
     def save_questions(self, practice_id: str, questions: list[Question]) -> None:
         for q in questions:
@@ -125,18 +139,22 @@ class PracticeRepository:
         session.total_score = total_score
         self._session.commit()
 
-    def list_sessions(self, student_id: str) -> list[dict]:
+    def list_sessions(self, student_id: str, session_type: str | None = None) -> list[dict]:
         stmt = (
             select(PracticeSession)
             .where(PracticeSession.student_id == student_id)
             .order_by(PracticeSession.started_at.desc())
         )
+        if session_type is not None:
+            stmt = stmt.where(PracticeSession.session_type == session_type)
         sessions = self._session.scalars(stmt).all()
         return [
             {
                 "practiceId": s.practice_id,
                 "startedAt": s.started_at,
                 "status": s.status,
+                "sessionType": s.session_type,
+                "courseTitle": s.course_title,
                 "correctCount": self._count_correct(s.practice_id),
                 "questionCount": self._count_questions(s.practice_id),
             }

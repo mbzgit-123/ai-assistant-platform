@@ -142,6 +142,18 @@ def test_ask_excludes_low_score_chunks_from_sources():
     assert "2.9 其他" not in source_refs   # 低分块被排除
 
 
+def test_ask_dedupes_sources_from_same_section():
+    svc, _, _ = _service(
+        llm_responses=["讲解"],
+        hits=[
+            _hit("chunk_1", "激活函数 tanh 定义", score=0.8, heading="第3章 神经网络 > 激活函数 > 理解非线性因素"),
+            _hit("chunk_2", "tanh 导数与梯度消失", score=0.75, heading="第3章 神经网络 > 激活函数 > 理解非线性因素"),
+        ],
+    )
+    r = svc.ask("Tanh 激活函数是什么", "s_1")
+    assert [s["sourceRef"] for s in r["sources"]] == ["理解非线性因素"]
+
+
 def test_ask_stream_yields_meta_delta_done():
     svc, rec, _ = _service(
         llm_responses=["循环结构"],

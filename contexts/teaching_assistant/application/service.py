@@ -42,7 +42,7 @@ class TeachingAssistantService:
             sources: list[dict] = []
         else:
             reply = self._llm.chat(self._build_messages(question, selected)).content
-            sources = [self._to_source(h) for h in selected]
+            sources = self._to_sources(selected)
 
         self._record(conversation_id, student_id, question, reply, sources)
         return {"reply": reply, "sources": sources, "conversationId": conversation_id}
@@ -65,7 +65,7 @@ class TeachingAssistantService:
             yield {"type": "meta", "conversationId": conversation_id, "sources": sources}
             yield {"type": "delta", "content": reply}
         else:
-            sources = [self._to_source(h) for h in selected]
+            sources = self._to_sources(selected)
             yield {"type": "meta", "conversationId": conversation_id, "sources": sources}
             parts: list[str] = []
             try:
@@ -115,6 +115,20 @@ class TeachingAssistantService:
             "headingPath": heading_path,
             "sourceRef": hit.heading_path.rsplit(" > ", 1)[-1],
         }
+
+    @staticmethod
+    def _to_sources(hits: list[RetrievedChunk]) -> list[dict]:
+        """将命中分块转为去重后的溯源来源（同一小节多个分块只保留一条）。"""
+        seen: set[str] = set()
+        sources: list[dict] = []
+        for hit in hits:
+            source = TeachingAssistantService._to_source(hit)
+            key = source["headingPath"]
+            if key in seen:
+                continue
+            seen.add(key)
+            sources.append(source)
+        return sources
 
     @staticmethod
     def _build_messages(question: str, hits: list[RetrievedChunk]) -> list[dict[str, str]]:
